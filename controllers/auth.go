@@ -112,22 +112,3 @@ func Login(c *gin.Context) {
 		"token":   tokenString,
 	})
 }
-
-func GetProfile(c *gin.Context) {
-	// Retrieve the userID stored by the middleware
-	userID, exists := c.Get("userID")
-	if !exists {
-		c.JSON(http.StatusUnauthorized, gin.H{"erro": "User Context not found"})
-		return
-	}
-
-	email, _ := c.Get("email")
-
-	c.JSON(http.StatusOK, gin.H{
-		"message": "Profile retrieved successfully",
-		"data": gin.H{
-			"userID": userID,
-			"email":  email,
-		},
-	})
-}

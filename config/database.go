@@ -18,7 +18,7 @@ func ConnectDatabase() {
 	// load env
 	err := godotenv.Load()
 	if err != nil {
-		log.Fatal("Error loading .env file")
+		log.Println("Error loading .env file")
 	}
 
 	// Buildiing connection
@@ -32,14 +32,14 @@ func ConnectDatabase() {
 
 	database, err := gorm.Open(postgres.Open(dsn), &gorm.Config{})
 	if err != nil {
-		log.Fatal("Failed to connect to database:", err)
+		log.Panic("Failed to connect to database:", err)
 	}
 
 	fmt.Println("Database connection established")
 
 	err = database.AutoMigrate(&models.User{})
 	if err != nil {
-		log.Fatal("Failed to migrate database:", err)
+		log.Panic("Failed to migrate database:", err)
 	}
 
 	fmt.Println("Database migration completed")
