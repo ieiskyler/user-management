@@ -81,6 +81,8 @@ func TestAuthService_Register(t *testing.T) {
 
 // Login Service Test
 func TestAuthService_Login(t *testing.T) {
+	t.Setenv("JWT_SECRET", "service-test-secret")
+
 	// Pre-seed a valid user for login tests
 	hashedPassword, _ := bcrypt.GenerateFromPassword([]byte("securepass123"), bcrypt.DefaultCost)
 	mockRepo := &MockUserRepository{
@@ -107,16 +109,16 @@ func TestAuthService_Login(t *testing.T) {
 			expectedError: "",
 		},
 		{
-			name:          "Invalid Username",
+			name:          "InvalidUsername",
 			username:      "janedoe",
 			password:      "securepass123",
-			expectedError: "Invalid Username",
+			expectedError: "invalid credentials",
 		},
 		{
-			name:          "Invalid Password",
+			name:          "InvalidPassword",
 			username:      "johndoe",
 			password:      "wrongpassword",
-			expectedError: "Invalid Password",
+			expectedError: "invalid credentials",
 		},
 	}
 	for _, tt := range tests {
