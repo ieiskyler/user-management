@@ -3,11 +3,13 @@ package middleware
 import (
 	"fmt"
 	"net/http"
-	"os"
 	"strings"
+
+	"user-management/internal/config"
 
 	"github.com/gin-gonic/gin"
 	"github.com/golang-jwt/jwt/v5"
+	"github.com/google/uuid"
 )
 
 func AuthMiddleware() gin.HandlerFunc {
@@ -27,14 +29,16 @@ func AuthMiddleware() gin.HandlerFunc {
 		}
 
 		tokenString := parts[1]
-		secret := os.Getenv("JWT_SECRET")
-		if secret == "" {
-			secret = "fallbacksecret" // Fallback secret key for testing
+		secret, err := config.JWTSecret()
+		if err != nil {
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "JWT Configuration is missing"})
+			c.Abort()
+			return
 		}
 
 		token, err := jwt.Parse(tokenString, func(token *jwt.Token) (interface{}, error) {
-			if _, ok := token.Method.(*jwt.SigningMethodHMAC); !ok {
-				return nil, fmt.Errorf("Unexpected signing method")
+			if token.Method != jwt.SigningMethodHS256 {
+				return nil, fmt.Errorf("unexpected signing method")
 			}
 			return []byte(secret), nil
 		})
@@ -51,8 +55,20 @@ func AuthMiddleware() gin.HandlerFunc {
 			return
 		}
 
-		// extract UUID as string (converted the UUID to string in auth_service.go)
-		c.Set("userID", claims["userID"])
+		userID, ok := claims["userID"].(string)
+		if !ok {
+			c.JSON(http.StatusUnauthorized, gin.H{"error": "Invalid user ID claim"})
+			c.Abort()
+			return
+		}
+
+		if _, err := uuid.Parse(userID); err != nil {
+			c.JSON(http.StatusUnauthorized, gin.H{"error": "Invalid user ID claim"})
+			c.Abort()
+			return
+		}
+
+		c.Set("userID", userID)
 		c.Next()
 	}
 }

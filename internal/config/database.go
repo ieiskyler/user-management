@@ -22,7 +22,9 @@ func ConnectDatabase() *gorm.DB {
 		" port=" + os.Getenv("DB_PORT") +
 		" sslmode=disable"
 
-	db, err := gorm.Open(postgres.Open(dsn), &gorm.Config{})
+	db, err := gorm.Open(postgres.Open(dsn), &gorm.Config{
+		TranslateError: true,
+	})
 	if err != nil {
 		log.Panic("Failed to connect to database:", err)
 	}

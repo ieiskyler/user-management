@@ -1,12 +1,19 @@
 package handler
 
 import (
+	"errors"
 	"net/http"
 	"user-management/internal/models"
 	"user-management/internal/service"
 
 	"github.com/gin-gonic/gin"
 )
+
+type RegisterRequest struct {
+	Username string `json:"username" binding:"required"`
+	Email    string `json:"email" binding:"required,email"`
+	Password string `json:"password" binding:"required,min=8"`
+}
 
 type AuthHandler struct {
 	authService service.AuthService
@@ -17,26 +24,33 @@ func NewAuthHandler(authService service.AuthService) *AuthHandler {
 }
 
 func (h *AuthHandler) Register(c *gin.Context) {
-	var user models.User
-	if err := c.ShouldBindJSON(&user); err != nil {
+	var registerRequest RegisterRequest
+	if err := c.ShouldBindJSON(&registerRequest); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 		return
 	}
+	user := models.User{
+		Username: registerRequest.Username,
+		Email:    registerRequest.Email,
+		Password: registerRequest.Password,
+	}
+
 	if err := h.authService.Register(&user); err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		if errors.Is(err, service.ErrUserAlreadyExists) {
+			c.JSON(http.StatusConflict, gin.H{"error": "user already exists"})
+			return
+		}
+
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to register user"})
 		return
 	}
 
 	// Return success the created user (excluding the password)
 	c.JSON(http.StatusCreated, gin.H{
-		"message": "User registered successfully",
-		"data": gin.H{
-			"id":         user.ID,
-			"username":   user.Username,
-			"email":      user.Email,
-			"created_at": user.CreatedAt,
-			"updated_at": user.UpdatedAt,
-		},
+		"id":         user.ID,
+		"username":   user.Username,
+		"email":      user.Email,
+		"created_at": user.CreatedAt,
 	})
 }
 
