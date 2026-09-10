@@ -31,8 +31,8 @@ func (m *MockUserRepository) FindByUsername(username string) (*models.User, erro
 	return nil, errors.New("User not found")
 }
 
-func (m *MockUserRepository) FindAll() ([]models.User, error) {
-	return nil, nil // unused in this test
+func (m *MockUserRepository) FindAll(offset, limit int) ([]models.User, int64, error) {
+	return nil, 0, nil // unused in this test
 }
 
 // Test for Register function

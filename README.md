@@ -254,12 +254,64 @@ curl -X POST http://localhost:8080/api/v1/login \
 
 ### List Users
 
-Returns all registered users. This endpoint requires a valid JWT.
+Returns a paginated list of registered users. This endpoint requires a valid JWT.
 
 ```http
 GET /api/v1/users
 Authorization: Bearer <token>
 ```
+
+
+Query parameters (all optional):
+
+| Parameter | Type | Default | Notes                                |
+|-----------|------|---------|---------------------------------------|
+| `page`    | int  | `1`     | Must be `>= 1` if provided.           |
+| `limit`   | int  | `10`    | Must be between `1` and `100`.        |
+
+Successful response: `200 OK`
+
+```json
+{
+	"users": [
+		{
+			"id": "123e4567-e89b-12d3-a456-426614174000",
+			"username": "johndoe",
+			"email": "john@example.com",
+			"created_at": "2026-09-04T00:00:00Z"
+		}
+	],
+	"page": 1,
+	"limit": 10,
+	"total": 1,
+	"total_pages": 1
+}
+```
+
+Invalid pagination parameters (e.g. non-numeric `page`/`limit`, or `limit` outside `1–100`): `400 Bad Request`
+
+```json
+{
+	"status": 400,
+	"code": "INVALID_REQUEST",
+	"message": "invalid pagination parameters"
+}
+```
+
+Missing or invalid token: `401 Unauthorized`
+
+```json
+{
+	"status": 401,
+	"code": "INVALID_TOKEN",
+	"message": "invalid or expired token"
+}
+```
+
+Example:
+```http
+curl "http://localhost:8080/api/v1/users?page=1&limit=10"
+-H "Authorization: Bearer <token>"```
 
 Successful response: `200 OK`
 

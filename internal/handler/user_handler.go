@@ -18,7 +18,19 @@ func NewUserHandler(userService service.UserService) *UserHandler {
 }
 
 func (h *UserHandler) GetUsers(c *gin.Context) {
-	users, err := h.userService.GetAllUsers()
+	var query ListUsersQuery
+	if err := c.ShouldBindQuery(&query); err != nil {
+		response.Error(
+			c,
+			http.StatusBadRequest,
+			response.CodeInvalidRequest,
+			"invalid pagination parameters",
+		)
+		return
+	}
+	query.Normalize()
+
+	users, total, err := h.userService.GetAllUsers(query.Page, query.Limit)
 	if err != nil {
 		response.Error(
 			c,
@@ -28,22 +40,13 @@ func (h *UserHandler) GetUsers(c *gin.Context) {
 		)
 		return
 	}
+	totalPages := int((total + int64(query.Limit) - 1) / int64(query.Limit))
 
-	// Mapping to a strict response that excludes the hashed password
-	var userResponses []map[string]interface{}
-	for _, user := range users {
-		userResponses = append(userResponses, map[string]interface{}{
-			"id":         user.ID,
-			"username":   user.Username,
-			"email":      user.Email,
-			"created_at": user.CreatedAt,
-		})
-	}
-
-	// return empty array instead of null if no users found
-	if userResponses == nil {
-		userResponses = []map[string]interface{}{}
-	}
-
-	c.JSON(http.StatusOK, gin.H{"users": userResponses})
+	c.JSON(http.StatusOK, UserListResponse{
+		Users:      toUserSummaries(users),
+		Page:       query.Page,
+		Limit:      query.Limit,
+		Total:      total,
+		TotalPages: totalPages,
+	})
 }

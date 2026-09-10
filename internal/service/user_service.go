@@ -6,7 +6,7 @@ import (
 )
 
 type UserService interface {
-	GetAllUsers() ([]models.User, error)
+	GetAllUsers(page, limit int) ([]models.User, int64, error)
 }
 
 type userService struct {
@@ -17,6 +17,7 @@ func NewUserService(repo repository.UserRepository) UserService {
 	return &userService{repo}
 }
 
-func (s *userService) GetAllUsers() ([]models.User, error) {
-	return s.repo.FindAll()
+func (s *userService) GetAllUsers(page, limit int) ([]models.User, int64, error) {
+	offset := (page - 1) * limit
+	return s.repo.FindAll(offset, limit)
 }

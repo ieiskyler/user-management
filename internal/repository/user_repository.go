@@ -10,7 +10,7 @@ import (
 type UserRepository interface {
 	Create(user *models.User) error
 	FindByUsername(username string) (*models.User, error)
-	FindAll() ([]models.User, error)
+	FindAll(offset, limit int) ([]models.User, int64, error)
 }
 
 type userRepository struct {
@@ -31,8 +31,18 @@ func (r *userRepository) FindByUsername(username string) (*models.User, error) {
 	return &user, err
 }
 
-func (r *userRepository) FindAll() ([]models.User, error) {
+func (r *userRepository) FindAll(offset, limit int) ([]models.User, int64, error) {
 	var users []models.User
-	err := r.db.Find(&users).Error
-	return users, err
+	var total int64
+
+	if err := r.db.Model(&models.User{}).Count(&total).Error; err != nil {
+		return nil, 0, err
+	}
+
+	err := r.db.Offset(offset).Limit(limit).Find(&users).Error
+	if err != nil {
+		return nil, 0, err
+	}
+
+	return users, total, nil
 }
