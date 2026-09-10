@@ -1,6 +1,7 @@
 package main
 
 import (
+	"errors"
 	"net/http"
 	"net/http/httptest"
 	"testing"
@@ -71,4 +72,20 @@ func newAuthHandlerForTest() *handler.AuthHandler {
 
 func newUserHandlerForTest() *handler.UserHandler {
 	return handler.NewUserHandler(mockUserService{})
+}
+
+func TestHandleServerError(t *testing.T) {
+	t.Run("normal server shutdown returns nil", func(t *testing.T) {
+		err := handleServerError(http.ErrServerClosed)
+
+		assert.NoError(t, err)
+	})
+
+	t.Run("unexpected server error is returned", func(t *testing.T) {
+		expectedError := errors.New("server failed")
+
+		err := handleServerError(expectedError)
+
+		assert.ErrorIs(t, err, expectedError)
+	})
 }

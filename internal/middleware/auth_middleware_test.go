@@ -31,6 +31,15 @@ func TestAuthMiddleware(t *testing.T) {
 		"exp":    time.Now().Add(time.Hour).Unix(),
 	})
 
+	missingUserIDToken := signedTestToken(t, jwt.SigningMethodHS256, jwt.MapClaims{
+		"exp": time.Now().Add(time.Hour).Unix(),
+	})
+
+	invalidUserIDToken := signedTestToken(t, jwt.SigningMethodHS256, jwt.MapClaims{
+		"userID": "invalid-uuid",
+		"exp":    time.Now().Add(time.Hour).Unix(),
+	})
+
 	tests := []struct {
 		name           string
 		authorization  string
@@ -42,6 +51,8 @@ func TestAuthMiddleware(t *testing.T) {
 		{name: "invalid token", authorization: "Bearer invalid", expectedStatus: http.StatusUnauthorized},
 		{name: "expired token", authorization: "Bearer " + expiredToken, expectedStatus: http.StatusUnauthorized},
 		{name: "wrong algorithm token", authorization: "Bearer " + wrongAlgorithmToken, expectedStatus: http.StatusUnauthorized},
+		{name: "missing user ID token", authorization: "Bearer " + missingUserIDToken, expectedStatus: http.StatusUnauthorized},
+		{name: "invalid user ID token", authorization: "Bearer " + invalidUserIDToken, expectedStatus: http.StatusUnauthorized},
 		{name: "valid token", authorization: "Bearer " + validToken, expectedStatus: http.StatusOK, expectedUserID: "123e4567-e89b-12d3-a456-426614174000"},
 	}
 

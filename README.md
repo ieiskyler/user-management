@@ -32,6 +32,8 @@ user-management/
 │   ├── config/
 │   │   ├── auth_test.go
 │   │   ├── auth.go
+│   │   ├── database_pool_test.go
+│   │   ├── database_pool.go
 │   │   ├── database_test.go
 │   │   └── database.go
 │   ├── handler/
@@ -76,6 +78,21 @@ DB_NAME=user_management
 DB_PORT=5432
 JWT_SECRET=replace-this-with-a-long-random-secret
 ```
+
+Database settings:
+
+- `DB_SSL_MODE` controls PostgreSQL TLS behavior. Use `disable` for local development and a secure mode such as `require` or `verify-full` in production.
+- `DB_MAX_OPEN_CONNS` sets the maximum number of open database connections. The default is `10`.
+- `DB_MAX_IDLE_CONNS` sets the maximum number of idle connections. The default is `5`.
+- `DB_CONN_MAX_LIFETIME` sets how long a database connection may remain open. The default is `1h`.
+- `JWT_SECRET` is required for signing and validating JWTs.
+
+The following database pool values must be positive:
+
+```text
+DB_MAX_OPEN_CONNS > 0
+DB_MAX_IDLE_CONNS > 0
+DB_CONN_MAX_LIFETIME > 0
 
 ## Prerequisites
 

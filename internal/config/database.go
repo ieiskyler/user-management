@@ -56,6 +56,20 @@ func ConnectDatabase() (*gorm.DB, error) {
 	if err != nil {
 		return nil, err
 	}
+
+	poolConfig, err := loadDatabasePoolConfig()
+	if err != nil {
+		return nil, err
+	}
+	sqlDB, err := db.DB()
+	if err != nil {
+		return nil, err
+	}
+
+	sqlDB.SetMaxOpenConns(poolConfig.maxOpenConnections)
+	sqlDB.SetMaxIdleConns(poolConfig.maxIdleConnections)
+	sqlDB.SetConnMaxLifetime(poolConfig.connectionMaxLifetime)
+
 	err = db.AutoMigrate(&models.User{})
 	if err != nil {
 		return nil, err
