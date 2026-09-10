@@ -51,7 +51,9 @@ func TestMain(t *testing.T) {
 		runServer = originalRunServer
 	})
 
-	connectDatabase = func() *gorm.DB { return &gorm.DB{} }
+	connectDatabase = func() (*gorm.DB, error) {
+		return &gorm.DB{}, nil
+	}
 	serverStarted := false
 	runServer = func(*gin.Engine) error {
 		serverStarted = true

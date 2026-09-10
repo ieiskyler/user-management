@@ -30,7 +30,9 @@ user-management/
 │       └── main.go
 ├── internal/
 │   ├── config/
+│   │   ├── auth_test.go
 │   │   ├── auth.go
+│   │   ├── database_test.go
 │   │   └── database.go
 │   ├── handler/
 │   │   ├── auth_handler.go
@@ -46,6 +48,9 @@ user-management/
 │   ├── repository/
 │   │   ├── user_repository.go
 │   │   └── user_repository_test.go
+│   ├── response/
+│   │   ├── response_test.go
+│   │   └── response.go
 │   ├── server/
 │   │   ├── router.go
 │   │   └── router_test.go
@@ -165,7 +170,9 @@ Duplicate username or email: `409 Conflict`
 
 ```json
 {
-	"error": "user already exists"
+	"status": 409,
+	"code": "USER_ALREADY_EXISTS",
+	"message": "user already exists"
 }
 ```
 
@@ -211,7 +218,9 @@ Invalid credentials: `401 Unauthorized`
 
 ```json
 {
-	"error": "invalid credentials"
+	"status": 401,
+	"code": "INVALID_CREDENTIALS",
+	"message": "invalid credentials"
 }
 ```
 
@@ -254,7 +263,9 @@ Missing or invalid token: `401 Unauthorized`
 
 ```json
 {
-	"error": "Invalid or expired token"
+	"status": 401,
+	"code": "INVALID_TOKEN",
+	"message": "invalid or expired token"
 }
 ```
 
@@ -278,12 +289,4 @@ Run tests with coverage:
 ```bash
 go test ./... -coverprofile=coverage.out
 go tool cover -func=coverage.out
-```
-
-The project targets at least 85% statement coverage. Integration tests use an in-memory SQLite database and do not require PostgreSQL.
-
-Run static analysis:
-
-```bash
-go vet ./...
 ```

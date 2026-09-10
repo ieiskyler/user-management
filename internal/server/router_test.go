@@ -84,7 +84,7 @@ func TestUserRegistrationLoginAndListFlow(t *testing.T) {
 	r.ServeHTTP(duplicateResponse, duplicateRequest)
 
 	require.Equal(t, http.StatusConflict, duplicateResponse.Code)
-	assert.Contains(t, duplicateResponse.Body.String(), "user already exists")
+	assert.Contains(t, duplicateResponse.Body.String(), `"code":"USER_ALREADY_EXISTS"`)
 
 	// 2. Test login with the registered user
 	loginRequest := httptest.NewRequest(

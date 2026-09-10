@@ -1,31 +1,53 @@
 package config
 
 import (
-	"os"
 	"testing"
+
+	"github.com/stretchr/testify/assert"
 )
 
-func TestConnectDatabasePanicsWhenConnectionFails(t *testing.T) {
+func TestConnectDatabaseReturnsErrorWhenConnectionFails(t *testing.T) {
 	for key, value := range map[string]string{
-		"DB_HOST":     "invalid[host",
+		"DB_HOST":     "invalid_host",
 		"DB_USER":     "test",
 		"DB_PASSWORD": "test",
 		"DB_NAME":     "test",
 		"DB_PORT":     "5432",
 	} {
-		os.Setenv(key, value)
-		t.Cleanup(func() { os.Unsetenv(key) })
+		t.Setenv(key, value)
 	}
 
-	assertPanics(t, func() { ConnectDatabase() })
+	db, err := ConnectDatabase()
+
+	assert.Error(t, err)
+	assert.Nil(t, db)
 }
 
-func assertPanics(t *testing.T, function func()) {
-	t.Helper()
-	defer func() {
-		if recover() == nil {
-			t.Fatal("expected function to panic")
-		}
-	}()
-	function()
+func TestDatabaseSSLModeUsesConfiguredValue(t *testing.T) {
+	t.Setenv("DB_SSL_MODE", "require")
+
+	assert.Equal(t, "require", databaseSSLMode())
+}
+
+func TestDatabaseSSLModeDefaultsToDisable(t *testing.T) {
+	t.Setenv("DB_SSL_MODE", "")
+
+	assert.Equal(t, "disable", databaseSSLMode())
+}
+
+func TestValidateDatabaseConfigReturnsErrorWhenVariableMissing(t *testing.T) {
+	for _, variable := range requiredDatabaseVariables {
+		t.Run(variable, func(t *testing.T) {
+			for _, requiredVariable := range requiredDatabaseVariables {
+				t.Setenv(requiredVariable, "test-value")
+			}
+
+			t.Setenv(variable, "")
+
+			err := validateDatabaseConfig()
+
+			assert.Error(t, err)
+			assert.Contains(t, err.Error(), variable)
+		})
+	}
 }

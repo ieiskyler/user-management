@@ -3,7 +3,9 @@ package handler
 import (
 	"errors"
 	"net/http"
+
 	"user-management/internal/models"
+	"user-management/internal/response"
 	"user-management/internal/service"
 
 	"github.com/gin-gonic/gin"
@@ -26,9 +28,15 @@ func NewAuthHandler(authService service.AuthService) *AuthHandler {
 func (h *AuthHandler) Register(c *gin.Context) {
 	var registerRequest RegisterRequest
 	if err := c.ShouldBindJSON(&registerRequest); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		response.Error(
+			c,
+			http.StatusBadRequest,
+			response.CodeInvalidRequest,
+			"invalid registration request",
+		)
 		return
 	}
+
 	user := models.User{
 		Username: registerRequest.Username,
 		Email:    registerRequest.Email,
@@ -37,11 +45,21 @@ func (h *AuthHandler) Register(c *gin.Context) {
 
 	if err := h.authService.Register(&user); err != nil {
 		if errors.Is(err, service.ErrUserAlreadyExists) {
-			c.JSON(http.StatusConflict, gin.H{"error": "user already exists"})
+			response.Error(
+				c,
+				http.StatusConflict,
+				response.CodeUserAlreadyExists,
+				"user already exists",
+			)
 			return
 		}
 
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to register user"})
+		response.Error(
+			c,
+			http.StatusInternalServerError,
+			response.CodeFailedToRegister,
+			"failed to register user",
+		)
 		return
 	}
 
@@ -62,14 +80,23 @@ func (h *AuthHandler) Login(c *gin.Context) {
 	}
 
 	if err := c.ShouldBindJSON(&loginRequest); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid Username and Password"})
+		response.Error(
+			c,
+			http.StatusBadRequest,
+			response.CodeInvalidRequest,
+			"invalid login request",
+		)
 		return
 	}
 
 	token, err := h.authService.Login(loginRequest.Username, loginRequest.Password)
 	if err != nil {
-		// use 401 for failed authentication rather thant 404 or 500
-		c.JSON(http.StatusUnauthorized, gin.H{"error": err.Error()})
+		response.Error(
+			c,
+			http.StatusUnauthorized,
+			response.CodeInvalidCredentials,
+			"invalid credentials",
+		)
 		return
 	}
 

@@ -2,6 +2,8 @@ package handler
 
 import (
 	"net/http"
+
+	"user-management/internal/response"
 	"user-management/internal/service"
 
 	"github.com/gin-gonic/gin"
@@ -18,7 +20,12 @@ func NewUserHandler(userService service.UserService) *UserHandler {
 func (h *UserHandler) GetUsers(c *gin.Context) {
 	users, err := h.userService.GetAllUsers()
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to retrieve users"})
+		response.Error(
+			c,
+			http.StatusInternalServerError,
+			response.CodeFailedToRetrieveUsers,
+			"failed to retrieve users",
+		)
 		return
 	}
 

@@ -2,6 +2,7 @@ package main
 
 import (
 	"log"
+
 	"user-management/internal/config"
 	"user-management/internal/handler"
 	"user-management/internal/repository"
@@ -16,7 +17,10 @@ var runServer = func(router *gin.Engine) error { return router.Run(":8080") }
 
 func main() {
 	// 1. Initialize Infrastructure
-	db := connectDatabase()
+	db, err := connectDatabase()
+	if err != nil {
+		log.Fatal("failed to connect to database:", err)
+	}
 
 	// 2. Initialize Repositories (Data Layer)
 	userRepo := repository.NewUserRepository(db)

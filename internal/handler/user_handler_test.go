@@ -47,7 +47,7 @@ func TestUserHandlerGetUsers(t *testing.T) {
 			name:           "service error",
 			err:            errors.New("database unavailable"),
 			expectedStatus: http.StatusInternalServerError,
-			expectedBody:   `"error":"Failed to retrieve users"`,
+			expectedBody:   `"code":"FAILED_TO_RETRIEVE_USERS"`,
 		},
 	}
 

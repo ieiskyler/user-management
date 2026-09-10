@@ -49,14 +49,38 @@ func TestAuthHandlerRegister(t *testing.T) {
 			name:           "invalid JSON",
 			body:           `{invalid`,
 			expectedStatus: http.StatusBadRequest,
-			expectedBody:   `"error"`,
+			expectedBody:   `"code":"INVALID_REQUEST"`,
+		},
+		{
+			name:           "empty username",
+			body:           `{"username":"","email":"john@example.com","password":"password123"}`,
+			expectedStatus: http.StatusBadRequest,
+			expectedBody:   `"code":"INVALID_REQUEST"`,
+		},
+		{
+			name:           "empty email",
+			body:           `{"username":"johndoe","email":"","password":"password123"}`,
+			expectedStatus: http.StatusBadRequest,
+			expectedBody:   `"code":"INVALID_REQUEST"`,
+		},
+		{
+			name:           "invalid email",
+			body:           `{"username":"johndoe","email":"invalid-email","password":"password123"}`,
+			expectedStatus: http.StatusBadRequest,
+			expectedBody:   `"code":"INVALID_REQUEST"`,
+		},
+		{
+			name:           "short password",
+			body:           `{"username":"johndoe","email":"john@example.com","password":"short"}`,
+			expectedStatus: http.StatusBadRequest,
+			expectedBody:   `"code":"INVALID_REQUEST"`,
 		},
 		{
 			name:           "service error",
 			body:           `{"username":"johndoe","email":"john@example.com","password":"password123"}`,
 			registerError:  errors.New("database unavailable"),
 			expectedStatus: http.StatusInternalServerError,
-			expectedBody:   `"error":"failed to register user"`,
+			expectedBody:   `"code":"FAILED_TO_REGISTER"`,
 		},
 	}
 
@@ -100,14 +124,14 @@ func TestAuthHandlerLogin(t *testing.T) {
 			name:           "invalid JSON",
 			body:           `{"username":"johndoe"}`,
 			expectedStatus: http.StatusBadRequest,
-			expectedBody:   `"error":"Invalid Username and Password"`,
+			expectedBody:   `"code":"INVALID_REQUEST"`,
 		},
 		{
 			name:           "authentication error",
 			body:           `{"username":"johndoe","password":"wrongpassword123"}`,
 			loginError:     errors.New("invalid credentials"),
 			expectedStatus: http.StatusUnauthorized,
-			expectedBody:   `"error":"invalid credentials"`,
+			expectedBody:   `"code":"INVALID_CREDENTIALS"`,
 		},
 	}
 

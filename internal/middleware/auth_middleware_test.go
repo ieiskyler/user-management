@@ -75,3 +75,17 @@ func signedTestToken(t *testing.T, method jwt.SigningMethod, claims jwt.Claims) 
 	}
 	return tokenString
 }
+
+func TestAuthMiddleware_MissingJWTSecret(t *testing.T) {
+	t.Setenv("JWT_SECRET", "")
+
+	recorder := httptest.NewRecorder()
+	context, _ := gin.CreateTestContext(recorder)
+	context.Request = httptest.NewRequest(http.MethodGet, "/", nil)
+	context.Request.Header.Set("Authorization", "Bearer test-token")
+
+	AuthMiddleware()(context)
+
+	assert.Equal(t, http.StatusInternalServerError, recorder.Code)
+	assert.Contains(t, recorder.Body.String(), "JWT configuration is missing")
+}

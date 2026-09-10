@@ -1,7 +1,7 @@
 package config
 
 import (
-	"log"
+	"errors"
 	"os"
 	"user-management/internal/models"
 
@@ -10,9 +10,37 @@ import (
 	"gorm.io/gorm"
 )
 
-func ConnectDatabase() *gorm.DB {
+var requiredDatabaseVariables = []string{
+	"DB_HOST",
+	"DB_USER",
+	"DB_NAME",
+	"DB_PORT",
+}
+
+func validateDatabaseConfig() error {
+	for _, variable := range requiredDatabaseVariables {
+		if os.Getenv(variable) == "" {
+			return errors.New("required database configuration is missing: " + variable)
+		}
+	}
+	return nil
+}
+
+func databaseSSLMode() string {
+	sslMode := os.Getenv("DB_SSL_MODE")
+	if sslMode == "" {
+		return "disable"
+	}
+	return sslMode
+}
+
+func ConnectDatabase() (*gorm.DB, error) {
 	if _, err := os.Stat(".env"); err == nil {
 		_ = godotenv.Load()
+	}
+
+	if err := validateDatabaseConfig(); err != nil {
+		return nil, err
 	}
 
 	dsn := "host=" + os.Getenv("DB_HOST") +
@@ -20,18 +48,18 @@ func ConnectDatabase() *gorm.DB {
 		" password=" + os.Getenv("DB_PASSWORD") +
 		" dbname=" + os.Getenv("DB_NAME") +
 		" port=" + os.Getenv("DB_PORT") +
-		" sslmode=disable"
+		" sslmode=" + databaseSSLMode()
 
 	db, err := gorm.Open(postgres.Open(dsn), &gorm.Config{
 		TranslateError: true,
 	})
 	if err != nil {
-		log.Panic("Failed to connect to database:", err)
+		return nil, err
 	}
 	err = db.AutoMigrate(&models.User{})
 	if err != nil {
-		log.Panic("Failed to migrate database:", err)
+		return nil, err
 	}
 
-	return db
+	return db, nil
 }
