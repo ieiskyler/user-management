@@ -6,7 +6,7 @@ import (
 	"github.com/stretchr/testify/assert"
 )
 
-func TestListUserQuery_Normalize(t *testing.T) {
+func TestListUsersQuery_Normalize(t *testing.T) {
 	tests := []struct {
 		name          string
 		input         ListUsersQuery
