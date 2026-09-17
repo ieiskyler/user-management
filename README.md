@@ -194,14 +194,14 @@ docker build -t user-management:local .
 ```
 
 ```bash
-docker run --rm -p 8080:8080
--e DB_HOST=<your-postgres-host>
--e DB_USER=postgres
--e DB_PASSWORD=postgres
--e DB_NAME=user_management
--e DB_PORT=5432
--e JWT_SECRET=your_very_secret_key
-user-management:local
+docker run --rm -p 8080:8080 \
+  -e DB_HOST=<your-postgres-host> \
+  -e DB_USER=postgres \
+  -e DB_PASSWORD=postgres \
+  -e DB_NAME=user_management \
+  -e DB_PORT=5432 \
+  -e JWT_SECRET=your_very_secret_key \
+  user-management:local
 ```
 
 ## API Endpoints
