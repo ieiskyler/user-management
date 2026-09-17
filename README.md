@@ -39,6 +39,10 @@ user-management/
 │   ├── handler/
 │   │   ├── auth_handler.go
 │   │   ├── auth_handler_test.go
+│   │   ├── user_query_test.go
+│   │   ├── user_query.go
+│   │   ├── user_response.go
+│   │   ├── user_response_test.go
 │   │   ├── user_handler.go
 │   │   └── user_handler_test.go
 │   ├── middleware/
@@ -142,6 +146,63 @@ http://localhost:8080/api/v1
 ```
 
 The application loads configuration from `.env`, connects to PostgreSQL, and automatically creates or updates the `users` table using GORM.
+
+
+## Running with Docker
+
+The easiest way to run the full stack locally — API and PostgreSQL together — is with Docker Compose. You don't need Go or PostgreSQL installed on your machine; only Docker.
+
+### Prerequisites
+
+- Docker Desktop (or Docker Engine + Compose plugin) installed and running.
+
+### Start the stack
+```bash
+docker compose up --build
+```
+
+This will:
+1. Build the API image from the project's `Dockerfile` (a multi-stage build producing a small, statically linked binary).
+2. Start a PostgreSQL 16 container and wait until it reports healthy before starting the API.
+3. Run `AutoMigrate` automatically on startup, creating the required tables in a fresh database.
+
+The API will be available at `http://localhost:8080`.
+
+### Configuration
+
+Environment variables for the containerized API are set in `docker-compose.yml` under the `api` service. Notably, `DB_HOST` is set to `postgres` — the Postgres container's service name — rather than `localhost`, since containers on the same Compose network reach each other by service name, not `localhost`.
+
+To change the JWT secret or database credentials for local development, edit the `environment` blocks in `docker-compose.yml` directly.
+
+### Stopping the stack
+
+```bash
+docker compose down
+```
+
+Add `-v` to also remove the Postgres data volume and start fresh next time:
+
+```bash
+docker compose down -v
+```
+
+### Running only the Docker image (without Compose)
+
+If you already have a PostgreSQL instance running elsewhere and only want to run the API container:
+```bash
+docker build -t user-management:local .
+```
+
+```bash
+docker run --rm -p 8080:8080
+-e DB_HOST=<your-postgres-host>
+-e DB_USER=postgres
+-e DB_PASSWORD=postgres
+-e DB_NAME=user_management
+-e DB_PORT=5432
+-e JWT_SECRET=your_very_secret_key
+user-management:local
+```
 
 ## API Endpoints
 
@@ -309,9 +370,11 @@ Missing or invalid token: `401 Unauthorized`
 ```
 
 Example:
+
 ```http
 curl "http://localhost:8080/api/v1/users?page=1&limit=10"
--H "Authorization: Bearer <token>"```
+-H "Authorization: Bearer <token>"
+```
 
 Successful response: `200 OK`
 
