@@ -371,7 +371,7 @@ Missing or invalid token: `401 Unauthorized`
 
 Example:
 
-```http
+```bash
 curl "http://localhost:8080/api/v1/users?page=1&limit=10"
 -H "Authorization: Bearer <token>"
 ```
