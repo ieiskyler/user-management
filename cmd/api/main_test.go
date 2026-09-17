@@ -21,7 +21,9 @@ func (mockAuthService) Login(string, string) (string, error) { return "token", n
 
 type mockUserService struct{}
 
-func (mockUserService) GetAllUsers() ([]models.User, error) { return []models.User{}, nil }
+func (mockUserService) GetAllUsers(page, limit int) ([]models.User, int64, error) {
+	return []models.User{}, 0, nil
+}
 
 func TestRouter(t *testing.T) {
 	router := server.NewRouter(
