@@ -4,7 +4,7 @@ services:
     environment:
       POSTGRES_USER: postgres
       POSTGRES_PASSWORD: postgres
-      POSTGRES_DB: user-management
+      POSTGRES_DB: user_management
     ports:
     - "5432:5432"
     healthcheck:
@@ -23,7 +23,7 @@ services:
       DB_HOST: postgres
       DB_USER: postgres
       DB_PASSWORD: postgres
-      DB_NAME: user-management
+      DB_NAME: user_management
       DB_PORT: "5432"
       DB_SSL_MODE: disable
       JWT_SECRET: your_very_secret_key
