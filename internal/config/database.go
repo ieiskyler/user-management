@@ -3,6 +3,7 @@ package config
 import (
 	"errors"
 	"os"
+	"strconv"
 	"user-management/internal/models"
 
 	"github.com/joho/godotenv"
@@ -13,6 +14,7 @@ import (
 var requiredDatabaseVariables = []string{
 	"DB_HOST",
 	"DB_USER",
+	"DB_PASSWORD",
 	"DB_NAME",
 	"DB_PORT",
 }
@@ -23,6 +25,12 @@ func validateDatabaseConfig() error {
 			return errors.New("required database configuration is missing: " + variable)
 		}
 	}
+
+	port, err := strconv.Atoi(os.Getenv("DB_PORT"))
+	if err != nil || port < 1 || port > 65535 {
+		return errors.New("DB_PORT must be a valid TCP port between 1 and 65535")
+	}
+
 	return nil
 }
 
