@@ -7,7 +7,7 @@ import (
 	"user-management/internal/models"
 	"user-management/internal/repository"
 
-	"github.com/golang-jwt/jwt"
+	"github.com/golang-jwt/jwt/v5"
 	"golang.org/x/crypto/bcrypt"
 	"gorm.io/gorm"
 )
