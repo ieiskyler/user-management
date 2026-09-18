@@ -39,7 +39,8 @@ func (r *userRepository) FindAll(offset, limit int) ([]models.User, int64, error
 		return nil, 0, err
 	}
 
-	err := r.db.Offset(offset).Limit(limit).Find(&users).Error
+	err := r.db.Order("created_at desc").Order("id asc").Offset(offset).Limit(limit).Find(&users).Error
+
 	if err != nil {
 		return nil, 0, err
 	}
