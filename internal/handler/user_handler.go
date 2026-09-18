@@ -30,6 +30,16 @@ func (h *UserHandler) GetUsers(c *gin.Context) {
 	}
 	query.Normalize()
 
+	if err := query.Validate(); err != nil {
+		response.Error(
+			c,
+			http.StatusBadRequest,
+			response.CodeInvalidRequest,
+			"invalid pagination parameters",
+		)
+		return
+	}
+
 	users, total, err := h.userService.GetAllUsers(query.Page, query.Limit)
 	if err != nil {
 		response.Error(
