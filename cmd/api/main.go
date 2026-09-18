@@ -33,6 +33,8 @@ var runServer = func(router *gin.Engine) error {
 		Addr:              ":8080",
 		Handler:           router,
 		ReadHeaderTimeout: 5 * time.Second,
+		WriteTimeout:      15 * time.Second,
+		IdleTimeout:       60 * time.Second,
 	}
 
 	shutdownContext, stop := signal.NotifyContext(
