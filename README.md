@@ -65,7 +65,6 @@ user-management/
 │       ├── auth_service_test.go
 │       ├── user_service.go
 │       └── user_service_test.go
-├── .env
 ├── go.mod
 └── README.md
 ```
@@ -97,6 +96,7 @@ The following database pool values must be positive:
 DB_MAX_OPEN_CONNS > 0
 DB_MAX_IDLE_CONNS > 0
 DB_CONN_MAX_LIFETIME > 0
+```
 
 ## Prerequisites
 
@@ -325,10 +325,10 @@ Authorization: Bearer <token>
 
 Query parameters (all optional):
 
-| Parameter | Type | Default | Notes                                |
-|-----------|------|---------|---------------------------------------|
-| `page`    | int  | `1`     | Must be `>= 1` if provided.           |
-| `limit`   | int  | `10`    | Must be between `1` and `100`.        |
+| Parameter | Type | Default | Notes                                				  |
+|-----------|------|---------|--------------------------------------------------------|
+| `page`    | int  | `1`     | Must be `>= 1` if provided and `>= 1000000`.           |
+| `limit`   | int  | `10`    | Must be between `1` and `100`.        				  |
 
 Successful response: `200 OK`
 
@@ -374,38 +374,6 @@ Example:
 ```bash
 curl "http://localhost:8080/api/v1/users?page=1&limit=10"
 -H "Authorization: Bearer <token>"
-```
-
-Successful response: `200 OK`
-
-```json
-{
-	"users": [
-		{
-			"id": "123e4567-e89b-12d3-a456-426614174000",
-			"username": "johndoe",
-			"email": "john@example.com",
-			"created_at": "2026-09-04T00:00:00Z"
-		}
-	]
-}
-```
-
-Missing or invalid token: `401 Unauthorized`
-
-```json
-{
-	"status": 401,
-	"code": "INVALID_TOKEN",
-	"message": "invalid or expired token"
-}
-```
-
-Example:
-
-```bash
-curl http://localhost:8080/api/v1/users \
-	-H "Authorization: Bearer <token>"
 ```
 
 ## Testing
