@@ -2,7 +2,6 @@ package handler
 
 import (
 	"net/http"
-	"strconv"
 
 	"user-management/internal/response"
 	"user-management/internal/service"
@@ -20,33 +19,6 @@ func NewUserHandler(userService service.UserService) *UserHandler {
 
 func (h *UserHandler) GetUsers(c *gin.Context) {
 	var query ListUsersQuery
-
-	if rawPage, exists := c.GetQuery("page"); exists {
-		page, err := strconv.Atoi(rawPage)
-		if err != nil || page < 1 {
-			response.Error(
-				c,
-				http.StatusBadRequest,
-				response.CodeInvalidRequest,
-				"invalid pagination parameters",
-			)
-			return
-		}
-	}
-
-	if rawLimit, exists := c.GetQuery("limit"); exists {
-		limit, err := strconv.Atoi(rawLimit)
-		if err != nil || limit < 1 || limit > maxLimit {
-			response.Error(
-				c,
-				http.StatusBadRequest,
-				response.CodeInvalidRequest,
-				"invalid pagination parameters",
-			)
-			return
-		}
-	}
-
 	if err := c.ShouldBindQuery(&query); err != nil {
 		response.Error(
 			c,
@@ -57,16 +29,6 @@ func (h *UserHandler) GetUsers(c *gin.Context) {
 		return
 	}
 	query.Normalize()
-
-	if err := query.Validate(); err != nil {
-		response.Error(
-			c,
-			http.StatusBadRequest,
-			response.CodeInvalidRequest,
-			"invalid pagination parameters",
-		)
-		return
-	}
 
 	users, total, err := h.userService.GetAllUsers(query.Page, query.Limit)
 	if err != nil {

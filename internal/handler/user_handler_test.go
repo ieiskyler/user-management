@@ -61,6 +61,12 @@ func TestUserHandlerGetUsers(t *testing.T) {
 			expectedBody:   `"code":"FAILED_TO_RETRIEVE_USERS"`,
 		},
 		{
+			name:           "page beyond maximum is rejected before hitting the service",
+			queryString:    "?page=1000001",
+			expectedStatus: http.StatusBadRequest,
+			expectedBody:   `"code":"INVALID_REQUEST"`,
+		},
+		{
 			name:           "invalid limit is rejected before hitting the service",
 			queryString:    "?limit=abc",
 			expectedStatus: http.StatusBadRequest,
