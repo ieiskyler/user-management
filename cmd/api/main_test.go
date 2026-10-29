@@ -2,11 +2,14 @@ package main
 
 import (
 	"errors"
+	"log"
 	"net/http"
 	"net/http/httptest"
 	"testing"
+	"time"
 	"user-management/internal/handler"
 	"user-management/internal/models"
+	"user-management/internal/ratelimit"
 	"user-management/internal/server"
 
 	"github.com/gin-gonic/gin"
@@ -69,7 +72,15 @@ func TestMain(t *testing.T) {
 }
 
 func newAuthHandlerForTest() *handler.AuthHandler {
-	return handler.NewAuthHandler(mockAuthService{})
+	limiter, err := ratelimit.NewFixedWindowLimiter(
+		10,
+		5*time.Minute,
+		5*time.Minute,
+	)
+	if err != nil {
+		log.Fatal("failed to configure login rate limiter:", err)
+	}
+	return handler.NewAuthHandler(mockAuthService{}, limiter)
 }
 
 func newUserHandlerForTest() *handler.UserHandler {

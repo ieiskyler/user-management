@@ -12,6 +12,7 @@ import (
 
 	"user-management/internal/config"
 	"user-management/internal/handler"
+	"user-management/internal/ratelimit"
 	"user-management/internal/repository"
 	"user-management/internal/server"
 	"user-management/internal/service"
@@ -75,12 +76,18 @@ func main() {
 	// 2. Initialize Repositories (Data Layer)
 	userRepo := repository.NewUserRepository(db)
 
+	// Initialize rate limiter
+	loginLimiter, err := ratelimit.NewFixedWindowLimiter(10, 5*time.Minute, 5*time.Minute)
+	if err != nil {
+		log.Fatal("failed to configure rate limiter:", err)
+	}
+
 	// 3. Initialize Services (Business Logic Layer)
 	authService := service.NewAuthService(userRepo)
 	userService := service.NewUserService(userRepo)
 
 	// 4. Initialize Controllers (Transport Layer)
-	authHandler := handler.NewAuthHandler(authService)
+	authHandler := handler.NewAuthHandler(authService, loginLimiter)
 	userHandler := handler.NewUserHandler(userService)
 
 	r := server.NewRouter(authHandler, userHandler)

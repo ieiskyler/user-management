@@ -6,10 +6,15 @@ import (
 	"net/http/httptest"
 	"strings"
 	"testing"
+	"time"
+
 	"user-management/internal/models"
+	"user-management/internal/ratelimit"
+	"user-management/internal/service"
 
 	"github.com/gin-gonic/gin"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 type mockAuthService struct {
@@ -87,7 +92,13 @@ func TestAuthHandlerRegister(t *testing.T) {
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
 			mockService := &mockAuthService{registerError: test.registerError}
-			handler := NewAuthHandler(mockService)
+			limiter, err := ratelimit.NewFixedWindowLimiter(
+				10,
+				5*time.Minute,
+				5*time.Minute,
+			)
+			require.NoError(t, err)
+			handler := NewAuthHandler(mockService, limiter)
 			request := httptest.NewRequest(http.MethodPost, "/api/v1/register", strings.NewReader(test.body))
 			request.Header.Set("Content-Type", "application/json")
 			recorder := httptest.NewRecorder()
@@ -129,7 +140,7 @@ func TestAuthHandlerLogin(t *testing.T) {
 		{
 			name:           "authentication error",
 			body:           `{"username":"johndoe","password":"wrongpassword123"}`,
-			loginError:     errors.New("invalid credentials"),
+			loginError:     service.ErrInvalidCredentials,
 			expectedStatus: http.StatusUnauthorized,
 			expectedBody:   `"code":"INVALID_CREDENTIALS"`,
 		},
@@ -138,7 +149,9 @@ func TestAuthHandlerLogin(t *testing.T) {
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
 			mockService := &mockAuthService{loginToken: test.loginToken, loginError: test.loginError}
-			handler := NewAuthHandler(mockService)
+			limiter, err := ratelimit.NewFixedWindowLimiter(10, 5*time.Minute, 5*time.Minute)
+			require.NoError(t, err)
+			handler := NewAuthHandler(mockService, limiter)
 			request := httptest.NewRequest(http.MethodPost, "/api/v1/login", strings.NewReader(test.body))
 			request.Header.Set("Content-Type", "application/json")
 			recorder := httptest.NewRecorder()
