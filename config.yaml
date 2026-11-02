@@ -1,0 +1,6 @@
+rate-limiter:
+  key-prefix: user-management:login
+  max-attempts: 10
+  window: 5m
+  block-duration: 5m
+

@@ -10,13 +10,15 @@ import (
 func NewRouter(
 	authHandler *handler.AuthHandler,
 	userHandler *handler.UserHandler,
+	loginLimiter middleware.LoginLimiter,
 ) *gin.Engine {
 	r := gin.Default()
 
 	v1 := r.Group("/api/v1")
 	{
 		v1.POST("/register", authHandler.Register)
-		v1.POST("/login", authHandler.Login)
+
+		v1.POST("/login", middleware.LoginRateLimit(loginLimiter), authHandler.Login)
 
 		protected := v1.Group("/")
 		protected.Use(middleware.AuthMiddleware())

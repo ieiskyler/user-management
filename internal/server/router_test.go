@@ -1,8 +1,8 @@
 package server
 
 import (
+	"context"
 	"encoding/json"
-	"log"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -11,7 +11,6 @@ import (
 
 	"user-management/internal/handler"
 	"user-management/internal/models"
-	"user-management/internal/ratelimit"
 	"user-management/internal/repository"
 	"user-management/internal/service"
 
@@ -21,6 +20,29 @@ import (
 	"gorm.io/driver/sqlite"
 	"gorm.io/gorm"
 )
+
+type fakeLoginLimiter struct{}
+
+func (fakeLoginLimiter) IsBlocked(
+	context.Context,
+	string,
+) (bool, time.Duration, error) {
+	return false, 0, nil
+}
+
+func (fakeLoginLimiter) RecordFailure(
+	context.Context,
+	string,
+) error {
+	return nil
+}
+
+func (fakeLoginLimiter) Reset(
+	context.Context,
+	string,
+) error {
+	return nil
+}
 
 func TestUserRegistrationLoginAndListFlow(t *testing.T) {
 
@@ -49,19 +71,14 @@ func TestUserRegistrationLoginAndListFlow(t *testing.T) {
 	authService := service.NewAuthService(userRepository)
 	userService := service.NewUserService(userRepository)
 
-	loginLimiter, err := ratelimit.NewFixedWindowLimiter(
-		10,
-		5*time.Minute,
-		5*time.Minute,
-	)
-	if err != nil {
-		log.Fatal("failed to configure login rate limiter:", err)
-	}
-
-	authHandler := handler.NewAuthHandler(authService, loginLimiter)
+	authHandler := handler.NewAuthHandler(authService)
 	userHandler := handler.NewUserHandler(userService)
 
-	r := NewRouter(authHandler, userHandler)
+	r := NewRouter(
+		authHandler,
+		userHandler,
+		fakeLoginLimiter{},
+	)
 
 	// 1. Test user registration and duplicate registration
 	registerRequest := httptest.NewRequest(

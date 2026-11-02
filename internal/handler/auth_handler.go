@@ -2,12 +2,9 @@ package handler
 
 import (
 	"errors"
-	"math"
 	"net/http"
-	"strconv"
 
 	"user-management/internal/models"
-	"user-management/internal/ratelimit"
 	"user-management/internal/response"
 	"user-management/internal/service"
 
@@ -21,17 +18,14 @@ type RegisterRequest struct {
 }
 
 type AuthHandler struct {
-	authService  service.AuthService
-	loginLimiter *ratelimit.FixedWindowLimiter
+	authService service.AuthService
 }
 
 func NewAuthHandler(
 	authService service.AuthService,
-	loginLimiter *ratelimit.FixedWindowLimiter,
 ) *AuthHandler {
 	return &AuthHandler{
-		authService:  authService,
-		loginLimiter: loginLimiter,
+		authService: authService,
 	}
 }
 
@@ -98,27 +92,10 @@ func (h *AuthHandler) Login(c *gin.Context) {
 		)
 		return
 	}
-
-	blocked, remaining := h.loginLimiter.IsBlocked(loginRequest.Username)
-	if blocked {
-		retryAfter := int64(math.Ceil(remaining.Seconds()))
-
-		c.Header("Retry-After", strconv.FormatInt(retryAfter, 10))
-
-		response.Error(
-			c,
-			http.StatusTooManyRequests,
-			response.CodeTooManyRequests,
-			"too many login attempts",
-		)
-		return
-	}
-
 	token, err := h.authService.Login(loginRequest.Username, loginRequest.Password)
 
 	if err != nil {
 		if errors.Is(err, service.ErrInvalidCredentials) {
-			h.loginLimiter.RecordFailure(loginRequest.Username)
 			response.Error(
 				c,
 				http.StatusUnauthorized,
@@ -136,8 +113,6 @@ func (h *AuthHandler) Login(c *gin.Context) {
 		)
 		return
 	}
-
-	h.loginLimiter.Reset(loginRequest.Username)
 
 	c.JSON(http.StatusOK, gin.H{"token": token})
 }

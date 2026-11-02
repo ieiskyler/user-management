@@ -2,6 +2,7 @@ package middleware
 
 import (
 	"bytes"
+	"context"
 	"encoding/json"
 	"io"
 	"math"
@@ -15,9 +16,9 @@ import (
 )
 
 type LoginLimiter interface {
-	IsBlocked(string) (bool, time.Duration, error)
-	RecordFailure(string) error
-	Reset(string) error
+	IsBlocked(context.Context, string) (bool, time.Duration, error)
+	RecordFailure(context.Context, string) error
+	Reset(context.Context, string) error
 }
 
 type loginRequest struct {
@@ -54,7 +55,10 @@ func LoginRateLimit(limiter LoginLimiter) gin.HandlerFunc {
 			return
 		}
 
-		blocked, remaining, err := limiter.IsBlocked(request.Username)
+		blocked, remaining, err := limiter.IsBlocked(
+			c.Request.Context(),
+			request.Username,
+		)
 		if err != nil {
 			response.Error(
 				c,
@@ -85,6 +89,20 @@ func LoginRateLimit(limiter LoginLimiter) gin.HandlerFunc {
 		}
 
 		c.Next()
+
+		status := c.Writer.Status()
+		ctx := c.Request.Context()
+
+		switch status {
+		case http.StatusUnauthorized:
+			if err := limiter.RecordFailure(ctx, request.Username); err != nil {
+				_ = c.Error(err)
+			}
+		case http.StatusOK:
+			if err := limiter.Reset(ctx, request.Username); err != nil {
+				_ = c.Error(err)
+			}
+		}
 	}
 }
 

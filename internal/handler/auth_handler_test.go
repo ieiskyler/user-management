@@ -6,15 +6,12 @@ import (
 	"net/http/httptest"
 	"strings"
 	"testing"
-	"time"
 
 	"user-management/internal/models"
-	"user-management/internal/ratelimit"
 	"user-management/internal/service"
 
 	"github.com/gin-gonic/gin"
 	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/require"
 )
 
 type mockAuthService struct {
@@ -92,13 +89,8 @@ func TestAuthHandlerRegister(t *testing.T) {
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
 			mockService := &mockAuthService{registerError: test.registerError}
-			limiter, err := ratelimit.NewFixedWindowLimiter(
-				10,
-				5*time.Minute,
-				5*time.Minute,
-			)
-			require.NoError(t, err)
-			handler := NewAuthHandler(mockService, limiter)
+
+			handler := NewAuthHandler(mockService)
 			request := httptest.NewRequest(http.MethodPost, "/api/v1/register", strings.NewReader(test.body))
 			request.Header.Set("Content-Type", "application/json")
 			recorder := httptest.NewRecorder()
@@ -144,14 +136,20 @@ func TestAuthHandlerLogin(t *testing.T) {
 			expectedStatus: http.StatusUnauthorized,
 			expectedBody:   `"code":"INVALID_CREDENTIALS"`,
 		},
+		{
+			name:           "service error",
+			body:           `{"username":"johndoe","password":"password123"}`,
+			loginError:     errors.New("database unavailable"),
+			expectedStatus: http.StatusInternalServerError,
+			expectedBody:   `"code":"FAILED_TO_LOGIN"`,
+		},
 	}
 
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
 			mockService := &mockAuthService{loginToken: test.loginToken, loginError: test.loginError}
-			limiter, err := ratelimit.NewFixedWindowLimiter(10, 5*time.Minute, 5*time.Minute)
-			require.NoError(t, err)
-			handler := NewAuthHandler(mockService, limiter)
+
+			handler := NewAuthHandler(mockService)
 			request := httptest.NewRequest(http.MethodPost, "/api/v1/login", strings.NewReader(test.body))
 			request.Header.Set("Content-Type", "application/json")
 			recorder := httptest.NewRecorder()
