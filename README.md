@@ -79,7 +79,18 @@ DB_USER=your-postgres-user
 DB_PASSWORD=your-postgres-password
 DB_NAME=user_management
 DB_PORT=5432
+DB_SSL_MODE=disable
 JWT_SECRET=replace-this-with-a-long-random-secret
+
+REDIS_HOST=localhost
+REDIS_PORT=6379
+REDIS_PASSWORD=
+REDIS_DATABASE=0
+
+RATE_LIMIT_KEY_PREFIX=user-management:login
+RATE_LIMIT_MAX_ATTEMPTS=10
+RATE_LIMIT_WINDOW=5m
+RATE_LIMIT_BLOCK_DURATION=5m
 ```
 
 Database settings:
@@ -89,6 +100,11 @@ Database settings:
 - `DB_MAX_IDLE_CONNS` sets the maximum number of idle connections. The default is `5`.
 - `DB_CONN_MAX_LIFETIME` sets how long a database connection may remain open. The default is `1h`.
 - `JWT_SECRET` is required for signing and validating JWTs.
+- `REDIS_HOST`, `REDIS_PORT`, `REDIS_PASSWORD`, and `REDIS_DATABASE` configure the Redis connection. The local defaults are `localhost`, `6379`, an empty password, and database `0`.
+- `RATE_LIMIT_KEY_PREFIX` sets the Redis key prefix. The default is `user-management:login`.
+- `RATE_LIMIT_MAX_ATTEMPTS` sets the number of failed logins allowed within the counting window. The default is `10`.
+- `RATE_LIMIT_WINDOW` sets the fixed counting window. The default is `5m`.
+- `RATE_LIMIT_BLOCK_DURATION` sets how long an account is blocked after reaching the limit. The default is `5m`.
 
 The following database pool values must be positive:
 
@@ -97,6 +113,19 @@ DB_MAX_OPEN_CONNS > 0
 DB_MAX_IDLE_CONNS > 0
 DB_CONN_MAX_LIFETIME > 0
 ```
+
+## Login Rate Limiting
+
+Login failures are counted per account in a fixed window.
+
+- The failure that reaches `RATE_LIMIT_MAX_ATTEMPTS` returns the normal `401` invalid-credentials response and starts the block. The default is the 10th failure.
+- From the next attempt onward, requests return `429 Too Many Requests`, including attempts with the correct password.
+- Blocked requests do not extend the block.
+- After the block expires, the account starts again with zero failures.
+- A successful login resets the account's failure counter.
+- Redis is required by the current implementation. Redis errors during the pre-login check fail closed with a `500` response.
+
+The counting window and block duration are independent timers. The counting window starts at the first failure and does not move after later failures. The block timer starts only when the maximum number of failures is reached.
 
 ## Prerequisites
 
@@ -145,7 +174,7 @@ The API base URL is:
 http://localhost:8080/api/v1
 ```
 
-The application loads configuration from `.env`, connects to PostgreSQL, and automatically creates or updates the `users` table using GORM.
+The application loads environment configuration, connects to PostgreSQL and Redis, and automatically creates or updates the `users` table using GORM.
 
 
 ## Running with Docker

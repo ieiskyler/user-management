@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"errors"
 	"io"
 	"math"
 	"net/http"
@@ -38,6 +39,18 @@ func LoginRateLimit(limiter LoginLimiter) gin.HandlerFunc {
 		rawBody, err := io.ReadAll(c.Request.Body)
 		if err != nil {
 			restoreRequestBody(c, rawBody)
+
+			var maxBytesError *http.MaxBytesError
+			if errors.As(err, &maxBytesError) {
+				response.Error(
+					c,
+					http.StatusRequestEntityTooLarge,
+					response.CodeInvalidRequest,
+					"request body too large",
+				)
+				c.Abort()
+				return
+			}
 			c.Next()
 			return
 		}
@@ -91,7 +104,7 @@ func LoginRateLimit(limiter LoginLimiter) gin.HandlerFunc {
 		c.Next()
 
 		status := c.Writer.Status()
-		ctx := c.Request.Context()
+		ctx := context.WithoutCancel(c.Request.Context())
 
 		switch status {
 		case http.StatusUnauthorized:

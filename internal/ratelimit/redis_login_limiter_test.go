@@ -1,27 +1,58 @@
-package middleware
+package ratelimit
 
 import (
 	"context"
+	"os"
+	"strings"
 	"testing"
 	"time"
-
-	"user-management/internal/config"
 
 	"github.com/redis/go-redis/v9"
 	"github.com/stretchr/testify/require"
 )
 
+func newRedisTestClient(t *testing.T) *redis.Client {
+	t.Helper()
+
+	address := os.Getenv("REDIS_TEST_ADDR")
+	if address == "" {
+		address = "localhost:6379"
+	}
+
+	client := redis.NewClient(&redis.Options{
+		Addr: address,
+	})
+	t.Cleanup(func() {
+		_ = client.Close()
+	})
+
+	ctx, cancel := context.WithTimeout(
+		context.Background(),
+		time.Second,
+	)
+	defer cancel()
+
+	if err := client.Ping(ctx).Err(); err != nil {
+		if os.Getenv("REQUIRE_REDIS") == "1" {
+			require.NoError(t, err)
+		}
+
+		t.Skipf("Redis unavailable at %s: %v", address, err)
+	}
+
+	return client
+}
 func TestNewRedisLoginLimiter(t *testing.T) {
 	client := redis.NewClient(&redis.Options{})
 
-	parsedConfig := config.ParsedRateLimiterConfig{
+	options := Options{
 		KeyPrefix:     "user-management:login",
 		MaxAttempts:   10,
 		Window:        5 * time.Minute,
 		BlockDuration: 5 * time.Minute,
 	}
 
-	limiter, err := NewRedisLoginLimiter(client, parsedConfig)
+	limiter, err := NewRedisLoginLimiter(client, options)
 
 	require.NoError(t, err)
 	require.NotNil(t, limiter)
@@ -33,33 +64,26 @@ func TestNewRedisLoginLimiter(t *testing.T) {
 }
 
 func TestNewRedisLoginLimiterRejectsNilClient(t *testing.T) {
-	parsedConfig := config.ParsedRateLimiterConfig{
+	options := Options{
 		KeyPrefix:     "user-management:login",
 		MaxAttempts:   10,
 		Window:        5 * time.Minute,
 		BlockDuration: 5 * time.Minute,
 	}
 
-	limiter, err := NewRedisLoginLimiter(nil, parsedConfig)
+	limiter, err := NewRedisLoginLimiter(nil, options)
 
 	require.Error(t, err)
 	require.Nil(t, limiter)
 }
 
 func TestRedisLoginLimiterBlocksAfterMaximumFailures(t *testing.T) {
-	client := redis.NewClient(&redis.Options{
-		Addr: "localhost:6379",
-	})
-	t.Cleanup(func() {
-		_ = client.Close()
-	})
-
+	client := newRedisTestClient(t)
 	ctx := context.Background()
-	require.NoError(t, client.Ping(ctx).Err())
 
 	limiter, err := NewRedisLoginLimiter(
 		client,
-		config.ParsedRateLimiterConfig{
+		Options{
 			KeyPrefix:     "test:user-management:login",
 			MaxAttempts:   2,
 			Window:        time.Minute,
@@ -107,19 +131,12 @@ func TestRedisLoginLimiterBlocksAfterMaximumFailures(t *testing.T) {
 }
 
 func TestRedisLoginLimiterAllowsNewFailuresAfterBlockExpires(t *testing.T) {
-	client := redis.NewClient(&redis.Options{
-		Addr: "localhost:6379",
-	})
-	t.Cleanup(func() {
-		_ = client.Close()
-	})
-
+	client := newRedisTestClient(t)
 	ctx := context.Background()
-	require.NoError(t, client.Ping(ctx).Err())
 
 	limiter, err := NewRedisLoginLimiter(
 		client,
-		config.ParsedRateLimiterConfig{
+		Options{
 			KeyPrefix:     "test:user-management:login-expiry",
 			MaxAttempts:   1,
 			Window:        time.Minute,
@@ -156,19 +173,12 @@ func TestRedisLoginLimiterAllowsNewFailuresAfterBlockExpires(t *testing.T) {
 }
 
 func TestRedisLoginLimiterStartsFreshWindowAfterWindowExpires(t *testing.T) {
-	client := redis.NewClient(&redis.Options{
-		Addr: "localhost:6379",
-	})
-	t.Cleanup(func() {
-		_ = client.Close()
-	})
-
+	client := newRedisTestClient(t)
 	ctx := context.Background()
-	require.NoError(t, client.Ping(ctx).Err())
 
 	limiter, err := NewRedisLoginLimiter(
 		client,
-		config.ParsedRateLimiterConfig{
+		Options{
 			KeyPrefix:     "test:user-management:login-window",
 			MaxAttempts:   3,
 			Window:        50 * time.Millisecond,
@@ -195,19 +205,12 @@ func TestRedisLoginLimiterStartsFreshWindowAfterWindowExpires(t *testing.T) {
 }
 
 func TestRedisLoginLimiterResetClearsAccount(t *testing.T) {
-	client := redis.NewClient(&redis.Options{
-		Addr: "localhost:6379",
-	})
-	t.Cleanup(func() {
-		_ = client.Close()
-	})
-
+	client := newRedisTestClient(t)
 	ctx := context.Background()
-	require.NoError(t, client.Ping(ctx).Err())
 
 	limiter, err := NewRedisLoginLimiter(
 		client,
-		config.ParsedRateLimiterConfig{
+		Options{
 			KeyPrefix:     "test:user-management:login-reset",
 			MaxAttempts:   2,
 			Window:        time.Minute,
@@ -233,19 +236,12 @@ func TestRedisLoginLimiterResetClearsAccount(t *testing.T) {
 }
 
 func TestRedisLoginLimiterKeepsAccountsSeparate(t *testing.T) {
-	client := redis.NewClient(&redis.Options{
-		Addr: "localhost:6379",
-	})
-	t.Cleanup(func() {
-		_ = client.Close()
-	})
-
+	client := newRedisTestClient(t)
 	ctx := context.Background()
-	require.NoError(t, client.Ping(ctx).Err())
 
 	limiter, err := NewRedisLoginLimiter(
 		client,
-		config.ParsedRateLimiterConfig{
+		Options{
 			KeyPrefix:     "test:user-management:login-accounts",
 			MaxAttempts:   2,
 			Window:        time.Minute,
@@ -273,4 +269,21 @@ func TestRedisLoginLimiterKeepsAccountsSeparate(t *testing.T) {
 	require.NoError(t, err)
 	require.False(t, blockedB)
 	require.Zero(t, remainingB)
+}
+
+func TestRedisKeyHashesAccount(t *testing.T) {
+	limiter := &RedisLoginLimiter{
+		keyPrefix: "test:user-management:login",
+	}
+
+	account := "alice"
+	longAccount := strings.Repeat("x", 10000)
+
+	key := limiter.redisKey(account)
+	longKey := limiter.redisKey(longAccount)
+
+	require.NotContains(t, key, account)
+	require.NotContains(t, longKey, longAccount)
+	require.LessOrEqual(t, len(longKey), len(limiter.keyPrefix)+1+64)
+	require.NotEqual(t, key, longKey)
 }

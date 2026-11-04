@@ -23,6 +23,21 @@ func TestLoadRedisSettings(t *testing.T) {
 	require.Equal(t, 2, settings.Database)
 }
 
+func TestLoadRedisSettingsUsesDefaults(t *testing.T) {
+	t.Setenv("REDIS_HOST", "")
+	t.Setenv("REDIS_PORT", "")
+	t.Setenv("REDIS_PASSWORD", "")
+	t.Setenv("REDIS_DATABASE", "")
+
+	settings, err := LoadRedisSettings()
+
+	require.NoError(t, err)
+	require.Equal(t, "localhost", settings.Host)
+	require.Equal(t, 6379, settings.Port)
+	require.Empty(t, settings.Password)
+	require.Equal(t, 0, settings.Database)
+}
+
 func TestLoadRedisSettingsRejectsInvalidValues(t *testing.T) {
 	tests := []struct {
 		name      string
@@ -31,13 +46,6 @@ func TestLoadRedisSettingsRejectsInvalidValues(t *testing.T) {
 		database  string
 		errorText string
 	}{
-		{
-			name:      "missing host",
-			host:      "",
-			port:      "6379",
-			database:  "0",
-			errorText: "REDIS_HOST",
-		},
 		{
 			name:      "invalid port",
 			host:      "redis",
@@ -96,38 +104,91 @@ func TestLoadRedisSettingsRejectsInvalidValues(t *testing.T) {
 	}
 }
 
-func TestLoadAppConfig(t *testing.T) {
-	t.Chdir("../..")
-	t.Setenv("REDIS_PASSWORD", "test-password")
+func TestLoadRateLimiterConfigUsesDefaults(t *testing.T) {
+	t.Setenv("RATE_LIMIT_KEY_PREFIX", "")
+	t.Setenv("RATE_LIMIT_MAX_ATTEMPTS", "")
+	t.Setenv("RATE_LIMIT_WINDOW", "")
+	t.Setenv("RATE_LIMIT_BLOCK_DURATION", "")
 
-	appConfig, err := LoadAppConfig()
+	rateLimiterConfig, err := LoadRateLimiterConfig()
 
 	require.NoError(t, err)
-
-	require.Equal(t, "user-management:login", appConfig.RateLimiter.KeyPrefix)
-	require.Equal(t, 10, appConfig.RateLimiter.MaxAttempts)
-	require.Equal(t, "5m", appConfig.RateLimiter.Window)
-	require.Equal(t, "5m", appConfig.RateLimiter.BlockDuration)
+	require.Equal(t, "user-management:login", rateLimiterConfig.KeyPrefix)
+	require.Equal(t, 10, rateLimiterConfig.MaxAttempts)
+	require.Equal(t, 5*time.Minute, rateLimiterConfig.Window)
+	require.Equal(t, 5*time.Minute, rateLimiterConfig.BlockDuration)
 }
 
-func TestRateLimiterConfigParse(t *testing.T) {
-	raw := RateLimiterConfig{
-		KeyPrefix:     "user-management:login",
-		MaxAttempts:   10,
-		Window:        "5m",
-		BlockDuration: "5m",
+func TestLoadRateLimiterConfig(t *testing.T) {
+	t.Setenv("RATE_LIMIT_KEY_PREFIX", "test:login")
+	t.Setenv("RATE_LIMIT_MAX_ATTEMPTS", "3")
+	t.Setenv("RATE_LIMIT_WINDOW", "30s")
+	t.Setenv("RATE_LIMIT_BLOCK_DURATION", "2m")
+
+	rateLimiterConfig, err := LoadRateLimiterConfig()
+
+	require.NoError(t, err)
+	require.Equal(t, "test:login", rateLimiterConfig.KeyPrefix)
+	require.Equal(t, 3, rateLimiterConfig.MaxAttempts)
+	require.Equal(t, 30*time.Second, rateLimiterConfig.Window)
+	require.Equal(t, 2*time.Minute, rateLimiterConfig.BlockDuration)
+}
+
+func TestLoadRateLimiterConfigRejectsInvalidValues(t *testing.T) {
+	tests := []struct {
+		name      string
+		variable  string
+		value     string
+		errorText string
+	}{
+		{
+			name:      "invalid max attempts",
+			variable:  "RATE_LIMIT_MAX_ATTEMPTS",
+			value:     "invalid",
+			errorText: "RATE_LIMIT_MAX_ATTEMPTS",
+		},
+		{
+			name:      "zero max attempts",
+			variable:  "RATE_LIMIT_MAX_ATTEMPTS",
+			value:     "0",
+			errorText: "RATE_LIMIT_MAX_ATTEMPTS",
+		},
+		{
+			name:      "invalid window",
+			variable:  "RATE_LIMIT_WINDOW",
+			value:     "invalid",
+			errorText: "RATE_LIMIT_WINDOW",
+		},
+		{
+			name:      "invalid block duration",
+			variable:  "RATE_LIMIT_BLOCK_DURATION",
+			value:     "invalid",
+			errorText: "RATE_LIMIT_BLOCK_DURATION",
+		},
 	}
 
-	parsed, err := raw.Parse()
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			t.Setenv(test.variable, test.value)
 
-	require.NoError(t, err)
-	require.Equal(t, "user-management:login", parsed.KeyPrefix)
-	require.Equal(t, 10, parsed.MaxAttempts)
-	require.Equal(t, 5*time.Minute, parsed.Window)
-	require.Equal(t, 5*time.Minute, parsed.BlockDuration)
+			_, err := LoadRateLimiterConfig()
+
+			require.Error(t, err)
+			require.Contains(t, err.Error(), test.errorText)
+		})
+	}
 }
 
-func TestRateLimiterConfigParseRejectsInvalidValues(t *testing.T) {
+func TestRateLimiterConfigValidate(t *testing.T) {
+	validConfig := RateLimiterConfig{
+		KeyPrefix:     "user-management:login",
+		MaxAttempts:   10,
+		Window:        5 * time.Minute,
+		BlockDuration: 5 * time.Minute,
+	}
+
+	require.NoError(t, validConfig.Validate())
+
 	tests := []struct {
 		name   string
 		config RateLimiterConfig
@@ -136,43 +197,39 @@ func TestRateLimiterConfigParseRejectsInvalidValues(t *testing.T) {
 			name: "empty key prefix",
 			config: RateLimiterConfig{
 				MaxAttempts:   10,
-				Window:        "5m",
-				BlockDuration: "5m",
+				Window:        5 * time.Minute,
+				BlockDuration: 5 * time.Minute,
 			},
 		},
 		{
 			name: "zero max attempts",
 			config: RateLimiterConfig{
 				KeyPrefix:     "login",
-				MaxAttempts:   0,
-				Window:        "5m",
-				BlockDuration: "5m",
+				Window:        5 * time.Minute,
+				BlockDuration: 5 * time.Minute,
 			},
 		},
 		{
-			name: "invalid block duration",
+			name: "zero window",
 			config: RateLimiterConfig{
 				KeyPrefix:     "login",
 				MaxAttempts:   10,
-				Window:        "5m",
-				BlockDuration: "invalid",
+				BlockDuration: 5 * time.Minute,
 			},
 		},
 		{
-			name: "invalid window",
+			name: "zero block duration",
 			config: RateLimiterConfig{
-				KeyPrefix:     "login",
-				MaxAttempts:   10,
-				Window:        "invalid",
-				BlockDuration: "5m",
+				KeyPrefix:   "login",
+				MaxAttempts: 10,
+				Window:      5 * time.Minute,
 			},
 		},
 	}
 
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
-			_, err := test.config.Parse()
-			require.Error(t, err)
+			require.Error(t, test.config.Validate())
 		})
 	}
 }

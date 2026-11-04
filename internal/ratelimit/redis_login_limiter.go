@@ -1,20 +1,14 @@
-package middleware
+package ratelimit
 
 import (
 	"context"
+	"crypto/sha256"
+	"encoding/hex"
 	"errors"
 	"fmt"
 	"time"
 
-	"user-management/internal/config"
-
 	"github.com/redis/go-redis/v9"
-)
-
-var (
-	ErrInvalidMaxAttempts   = errors.New("maxAttempts must be greater than 0")
-	ErrInvalidWindow        = errors.New("window must be greater than 0")
-	ErrInvalidBlockDuration = errors.New("blockDuration must be greater than 0")
 )
 
 var isBlockedScript = redis.NewScript(`
@@ -132,6 +126,15 @@ redis.call("HSET", KEYS[1], "count", count)
 return count
 `)
 
+// Options configures a Redis-backed login limiter.
+type Options struct {
+	KeyPrefix     string
+	MaxAttempts   int
+	Window        time.Duration
+	BlockDuration time.Duration
+}
+
+// RedisLoginLimiter stores login failure state in Redis.
 type RedisLoginLimiter struct {
 	client        *redis.Client
 	keyPrefix     string
@@ -140,39 +143,35 @@ type RedisLoginLimiter struct {
 	blockDuration time.Duration
 }
 
-var _ LoginLimiter = (*RedisLoginLimiter)(nil)
-
-func NewRedisLoginLimiter(
-	client *redis.Client,
-	config config.ParsedRateLimiterConfig,
-) (*RedisLoginLimiter, error) {
+// NewRedisLoginLimiter creates a Redis-backed login limiter.
+func NewRedisLoginLimiter(client *redis.Client, options Options) (*RedisLoginLimiter, error) {
 	if client == nil {
 		return nil, errors.New("redis client must not be nil")
 	}
 
 	return &RedisLoginLimiter{
 		client:        client,
-		keyPrefix:     config.KeyPrefix,
-		maxAttempts:   config.MaxAttempts,
-		window:        config.Window,
-		blockDuration: config.BlockDuration,
+		keyPrefix:     options.KeyPrefix,
+		maxAttempts:   options.MaxAttempts,
+		window:        options.Window,
+		blockDuration: options.BlockDuration,
 	}, nil
 }
 
 func (l *RedisLoginLimiter) redisKey(account string) string {
-	return l.keyPrefix + ":" + account
+	accountHash := sha256.Sum256([]byte(account))
+
+	return l.keyPrefix + ":" + hex.EncodeToString(accountHash[:])
 }
 
-func (l *RedisLoginLimiter) IsBlocked(
-	ctx context.Context,
-	account string,
-) (bool, time.Duration, error) {
-	result, err := isBlockedScript.Run(
+// IsBlocked reports whether an account is currently blocked.
+func (l *RedisLoginLimiter) IsBlocked(ctx context.Context, account string) (bool, time.Duration, error) {
+	values, err := isBlockedScript.Run(
 		ctx,
 		l.client,
 		[]string{l.redisKey(account)},
 		l.window.Milliseconds(),
-	).Result()
+	).Int64Slice()
 	if err != nil {
 		return false, 0, fmt.Errorf(
 			"check login rate limiter for %q: %w",
@@ -181,39 +180,22 @@ func (l *RedisLoginLimiter) IsBlocked(
 		)
 	}
 
-	values, ok := result.([]interface{})
-	if !ok || len(values) != 2 {
+	if len(values) != 2 {
 		return false, 0, fmt.Errorf(
-			"unexpected Redis rate-limit response: %T",
-			result,
+			"unexpected redis rate-limit response length: %d",
+			len(values),
 		)
 	}
-
-	blockedValue, ok := values[0].(int64)
-	if !ok {
-		return false, 0, fmt.Errorf(
-			"unexpected Redis blocked value: %T",
-			values[0],
-		)
-	}
-
-	remainingMilliseconds, ok := values[1].(int64)
-	if !ok {
-		return false, 0, fmt.Errorf(
-			"unexpected Redis remaining value: %T",
-			values[1],
-		)
-	}
+	blockedValue := values[0]
+	remainingMilliseconds := values[1]
 
 	return blockedValue == 1,
 		time.Duration(remainingMilliseconds) * time.Millisecond,
 		nil
 }
 
-func (l *RedisLoginLimiter) RecordFailure(
-	ctx context.Context,
-	account string,
-) error {
+// RecordFailure records one failed login attempt.
+func (l *RedisLoginLimiter) RecordFailure(ctx context.Context, account string) error {
 	_, err := recordFailureScript.Run(
 		ctx,
 		l.client,
@@ -233,10 +215,8 @@ func (l *RedisLoginLimiter) RecordFailure(
 	return nil
 }
 
-func (l *RedisLoginLimiter) Reset(
-	ctx context.Context,
-	account string,
-) error {
+// Reset clears the login failure state for an account.
+func (l *RedisLoginLimiter) Reset(ctx context.Context, account string) error {
 	if err := l.client.Del(
 		ctx,
 		l.redisKey(account),

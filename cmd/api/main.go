@@ -13,7 +13,7 @@ import (
 
 	"user-management/internal/config"
 	"user-management/internal/handler"
-	"user-management/internal/middleware"
+	"user-management/internal/ratelimit"
 	"user-management/internal/repository"
 	"user-management/internal/server"
 	"user-management/internal/service"
@@ -101,14 +101,9 @@ func main() {
 		log.Fatal("failed to connect to database:", err)
 	}
 
-	appConfig, err := config.LoadAppConfig()
+	rateLimiterConfig, err := config.LoadRateLimiterConfig()
 	if err != nil {
-		log.Fatal("failed to load application config:", err)
-	}
-
-	rateLimiterConfig, err := appConfig.RateLimiter.Parse()
-	if err != nil {
-		log.Fatal("invalid rate limiter configuration:", err)
+		log.Fatal("failed to load rate limiter configuration:", err)
 	}
 
 	redisClient, err := connectRedis()
@@ -117,10 +112,15 @@ func main() {
 	}
 	defer redisClient.Close()
 
-	loginLimiter, err := middleware.NewRedisLoginLimiter(
+	loginLimiter, err := ratelimit.NewRedisLoginLimiter(
 		redisClient,
-		rateLimiterConfig,
-	)
+		ratelimit.Options{
+			KeyPrefix:     rateLimiterConfig.KeyPrefix,
+			MaxAttempts:   rateLimiterConfig.MaxAttempts,
+			Window:        rateLimiterConfig.Window,
+			BlockDuration: rateLimiterConfig.BlockDuration,
+		})
+
 	if err != nil {
 		log.Fatal("failed to create login rate limiter:", err)
 	}

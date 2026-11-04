@@ -21,26 +21,21 @@ import (
 	"gorm.io/gorm"
 )
 
-type fakeLoginLimiter struct{}
-
-func (fakeLoginLimiter) IsBlocked(
-	context.Context,
-	string,
-) (bool, time.Duration, error) {
-	return false, 0, nil
+type fakeLoginLimiter struct {
+	blocked     bool
+	checkedKeys []string
 }
 
-func (fakeLoginLimiter) RecordFailure(
-	context.Context,
-	string,
-) error {
+func (f *fakeLoginLimiter) IsBlocked(_ context.Context, account string) (bool, time.Duration, error) {
+	f.checkedKeys = append(f.checkedKeys, account)
+	return f.blocked, time.Minute, nil
+}
+
+func (fakeLoginLimiter) RecordFailure(context.Context, string) error {
 	return nil
 }
 
-func (fakeLoginLimiter) Reset(
-	context.Context,
-	string,
-) error {
+func (fakeLoginLimiter) Reset(context.Context, string) error {
 	return nil
 }
 
@@ -74,10 +69,12 @@ func TestUserRegistrationLoginAndListFlow(t *testing.T) {
 	authHandler := handler.NewAuthHandler(authService)
 	userHandler := handler.NewUserHandler(userService)
 
+	loginLimiter := &fakeLoginLimiter{}
+
 	r := NewRouter(
 		authHandler,
 		userHandler,
-		fakeLoginLimiter{},
+		loginLimiter,
 	)
 
 	// 1. Test user registration and duplicate registration
@@ -152,4 +149,32 @@ func TestUserRegistrationLoginAndListFlow(t *testing.T) {
 	assert.Contains(t, listResponse.Body.String(), "johndoe")
 	assert.NotContains(t, listResponse.Body.String(), "securepass123")
 
+}
+
+func TestRouterLoginRateLimitBlocksBeforeHandler(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+
+	loginLimiter := &fakeLoginLimiter{
+		blocked: true,
+	}
+
+	r := NewRouter(
+		handler.NewAuthHandler(nil),
+		handler.NewUserHandler(nil),
+		loginLimiter,
+	)
+
+	request := httptest.NewRequest(
+		http.MethodPost,
+		"/api/v1/login",
+		strings.NewReader(`{"username":"alice","password":"wrongpassword"}`),
+	)
+	request.Header.Set("Content-Type", "application/json")
+
+	recorder := httptest.NewRecorder()
+	r.ServeHTTP(recorder, request)
+
+	require.Equal(t, http.StatusTooManyRequests, recorder.Code)
+	require.Equal(t, []string{"alice"}, loginLimiter.checkedKeys)
+	require.Contains(t, recorder.Body.String(), `"code":"TOO_MANY_REQUESTS"`)
 }

@@ -1,13 +1,8 @@
 package config
 
 import (
-	"errors"
 	"fmt"
-	"os"
-	"strconv"
 	"time"
-
-	"github.com/spf13/viper"
 )
 
 type RedisSettings struct {
@@ -17,18 +12,7 @@ type RedisSettings struct {
 	Database int
 }
 
-type AppConfig struct {
-	RateLimiter RateLimiterConfig `mapstructure:"rate-limiter"`
-}
-
 type RateLimiterConfig struct {
-	KeyPrefix     string `mapstructure:"key-prefix"`
-	MaxAttempts   int    `mapstructure:"max-attempts"`
-	Window        string `mapstructure:"window"`
-	BlockDuration string `mapstructure:"block-duration"`
-}
-
-type ParsedRateLimiterConfig struct {
 	KeyPrefix     string
 	MaxAttempts   int
 	Window        time.Duration
@@ -36,85 +20,96 @@ type ParsedRateLimiterConfig struct {
 }
 
 func LoadRedisSettings() (RedisSettings, error) {
-	port, err := strconv.Atoi(os.Getenv("REDIS_PORT"))
-	if err != nil || port <= 0 || port > 65535 {
+	port, err := parseIntEnvironment("REDIS_PORT", 6379)
+	if err != nil {
+		return RedisSettings{}, err
+	}
+	if port > 65535 {
 		return RedisSettings{}, fmt.Errorf(
 			"REDIS_PORT must be a valid TCP port",
 		)
 	}
 
-	database, err := strconv.Atoi(os.Getenv("REDIS_DATABASE"))
-	if err != nil || database < 0 {
-		return RedisSettings{}, fmt.Errorf(
-			"REDIS_DATABASE must be zero or greater",
-		)
+	database, err := parseNonNegativeIntEnvironment(
+		"REDIS_DATABASE",
+		0,
+	)
+	if err != nil {
+		return RedisSettings{}, err
 	}
 
-	host := os.Getenv("REDIS_HOST")
-	if host == "" {
-		return RedisSettings{}, errors.New("REDIS_HOST is required")
-	}
+	host := stringEnvironment("REDIS_HOST", "localhost")
 
 	return RedisSettings{
 		Host:     host,
 		Port:     port,
-		Password: os.Getenv("REDIS_PASSWORD"),
+		Password: stringEnvironment("REDIS_PASSWORD", ""),
 		Database: database,
 	}, nil
 }
 
-func LoadAppConfig() (AppConfig, error) {
-	v := viper.New()
+func LoadRateLimiterConfig() (RateLimiterConfig, error) {
+	keyPrefix := stringEnvironment(
+		"RATE_LIMIT_KEY_PREFIX",
+		"user-management:login",
+	)
 
-	v.SetConfigName("config")
-	v.SetConfigType("yaml")
-	v.AddConfigPath(".")
-
-	if err := v.ReadInConfig(); err != nil {
-		return AppConfig{}, fmt.Errorf("read config.yaml: %w", err)
+	maxAttempts, err := parseIntEnvironment(
+		"RATE_LIMIT_MAX_ATTEMPTS",
+		10,
+	)
+	if err != nil {
+		return RateLimiterConfig{}, err
 	}
 
-	var appConfig AppConfig
-	if err := v.Unmarshal(&appConfig); err != nil {
-		return AppConfig{}, fmt.Errorf("decode config.yaml: %w", err)
+	window, err := parseDurationEnvironment(
+		"RATE_LIMIT_WINDOW",
+		5*time.Minute,
+	)
+	if err != nil {
+		return RateLimiterConfig{}, err
 	}
 
-	return appConfig, nil
+	blockDuration, err := parseDurationEnvironment(
+		"RATE_LIMIT_BLOCK_DURATION",
+		5*time.Minute,
+	)
+	if err != nil {
+		return RateLimiterConfig{}, err
+	}
+
+	return RateLimiterConfig{
+		KeyPrefix:     keyPrefix,
+		MaxAttempts:   maxAttempts,
+		Window:        window,
+		BlockDuration: blockDuration,
+	}, nil
 }
 
-func (c RateLimiterConfig) Parse() (ParsedRateLimiterConfig, error) {
+func (c RateLimiterConfig) Validate() error {
 	if c.KeyPrefix == "" {
-		return ParsedRateLimiterConfig{}, fmt.Errorf(
-			"rate limiter key-prefix must not be empty",
+		return fmt.Errorf(
+			"rate limiter key prefix must not be empty",
 		)
 	}
 
 	if c.MaxAttempts <= 0 {
-		return ParsedRateLimiterConfig{}, fmt.Errorf(
-			"rate limiter max-attempts must be greater than 0",
+		return fmt.Errorf(
+			"rate limiter max attempts must be greater than 0",
 		)
 	}
 
-	window, err := time.ParseDuration(c.Window)
-	if err != nil || window <= 0 {
-		return ParsedRateLimiterConfig{}, fmt.Errorf(
-			"rate limiter window must be a positive duration: %q",
-			c.Window,
+	if c.Window <= 0 {
+		return fmt.Errorf(
+			"rate limiter window must be greater than 0",
 		)
 	}
 
-	blockDuration, err := time.ParseDuration(c.BlockDuration)
-	if err != nil || blockDuration <= 0 {
-		return ParsedRateLimiterConfig{}, fmt.Errorf(
-			"rate limiter block-duration must be a positive duration: %q",
-			c.BlockDuration,
+	if c.BlockDuration <= 0 {
+		return fmt.Errorf(
+			"rate limiter block duration must be greater than 0",
 		)
 	}
 
-	return ParsedRateLimiterConfig{
-		KeyPrefix:     c.KeyPrefix,
-		MaxAttempts:   c.MaxAttempts,
-		Window:        window,
-		BlockDuration: blockDuration,
-	}, nil
+	return nil
 }

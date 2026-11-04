@@ -8,12 +8,14 @@ import (
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
 	"golang.org/x/crypto/bcrypt"
+	"gorm.io/gorm"
 )
 
 // Mock Repository setup
 type MockUserRepository struct {
-	MockUsers map[string]*models.User
-	CreateErr error
+	MockUsers         map[string]*models.User
+	CreateErr         error
+	FindByUsernameErr error
 }
 
 func (m *MockUserRepository) Create(user *models.User) error {
@@ -25,10 +27,15 @@ func (m *MockUserRepository) Create(user *models.User) error {
 }
 
 func (m *MockUserRepository) FindByUsername(username string) (*models.User, error) {
+	if m.FindByUsernameErr != nil {
+		return nil, m.FindByUsernameErr
+	}
+
 	if user, exists := m.MockUsers[username]; exists {
 		return user, nil
 	}
-	return nil, errors.New("User not found")
+
+	return nil, gorm.ErrRecordNotFound
 }
 
 func (m *MockUserRepository) FindAll(offset, limit int) ([]models.User, int64, error) {
@@ -135,4 +142,19 @@ func TestAuthService_Login(t *testing.T) {
 			}
 		})
 	}
+}
+
+func TestAuthServiceLoginReturnsRepositoryErrors(t *testing.T) {
+	repositoryError := errors.New("database connection failed")
+	mockRepo := &MockUserRepository{
+		MockUsers:         make(map[string]*models.User),
+		FindByUsernameErr: repositoryError,
+	}
+
+	svc := NewAuthService(mockRepo)
+
+	token, err := svc.Login("johndoe", "securepass123")
+
+	assert.ErrorIs(t, err, repositoryError)
+	assert.Empty(t, token)
 }
