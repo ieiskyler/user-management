@@ -194,12 +194,70 @@ func TestLoginRateLimitUsesNonCancellableContextAfterHandler(t *testing.T) {
 
 }
 
+func TestLoginRateLimitAllowsRequestAfterBlockRecovery(t *testing.T) {
+	limiter := &fakeLoginLimiter{
+		blocked:   true,
+		remaining: 2 * time.Second,
+	}
+	router := gin.New()
+	handlerCalls := 0
+
+	router.POST(
+		"/login",
+		LoginRateLimit(limiter),
+		func(c *gin.Context) {
+			handlerCalls++
+			c.Status(http.StatusOK)
+		},
+	)
+
+	blockedRequest := httptest.NewRequest(
+		http.MethodPost,
+		"/login",
+		strings.NewReader(`{"username":"alice","password":"correctpassword"}`),
+	)
+	blockedRequest.Header.Set("Content-Type", "application/json")
+
+	blockedResponse := httptest.NewRecorder()
+	router.ServeHTTP(blockedResponse, blockedRequest)
+
+	require.Equal(t, http.StatusTooManyRequests, blockedResponse.Code)
+	require.Equal(t, 0, handlerCalls)
+
+	limiter.blocked = false
+	limiter.remaining = 0
+
+	recoveredRequest := httptest.NewRequest(
+		http.MethodPost,
+		"/login",
+		strings.NewReader(`{"username":"alice","password":"correctpassword"}`),
+	)
+	recoveredRequest.Header.Set("Content-Type", "application/json")
+
+	recoveredResponse := httptest.NewRecorder()
+	router.ServeHTTP(recoveredResponse, recoveredRequest)
+
+	require.Equal(t, http.StatusOK, recoveredResponse.Code)
+	require.Equal(t, 1, handlerCalls)
+	require.Equal(t, []string{"alice"}, limiter.resetKeys)
+
+}
 func TestLoginRateLimitFailsClosedWhenLimiterUnavailable(t *testing.T) {
 	limiter := &fakeLoginLimiter{
 		checkError: errors.New("redis unavailable"),
 	}
 	router := gin.New()
 	handlerCalled := false
+
+	var capturedError error
+
+	router.Use(func(c *gin.Context) {
+		c.Next()
+
+		if len(c.Errors) > 0 {
+			capturedError = c.Errors.Last().Err
+		}
+	})
 
 	router.POST(
 		"/login",
@@ -221,6 +279,7 @@ func TestLoginRateLimitFailsClosedWhenLimiterUnavailable(t *testing.T) {
 
 	require.Equal(t, http.StatusInternalServerError, recorder.Code)
 	require.False(t, handlerCalled)
+	require.ErrorIs(t, capturedError, limiter.checkError)
 	require.Equal(t, []string{"alice"}, limiter.checkedKeys)
 	require.Empty(t, limiter.recordedKeys)
 	require.Empty(t, limiter.resetKeys)

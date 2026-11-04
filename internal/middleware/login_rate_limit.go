@@ -48,6 +48,7 @@ func LoginRateLimit(limiter LoginLimiter) gin.HandlerFunc {
 					response.CodeInvalidRequest,
 					"request body too large",
 				)
+				_ = c.Error(err)
 				c.Abort()
 				return
 			}
@@ -73,6 +74,8 @@ func LoginRateLimit(limiter LoginLimiter) gin.HandlerFunc {
 			request.Username,
 		)
 		if err != nil {
+			_ = c.Error(err)
+
 			response.Error(
 				c,
 				http.StatusInternalServerError,

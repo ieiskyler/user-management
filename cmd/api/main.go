@@ -27,7 +27,7 @@ var connectDatabase = config.ConnectDatabase
 var connectRedis = func() (*redis.Client, error) {
 	redisSettings, err := config.LoadRedisSettings()
 	if err != nil {
-		return nil, fmt.Errorf("Load Redis settings: %w", err)
+		return nil, fmt.Errorf("load Redis settings: %w", err)
 	}
 
 	redisClient := redis.NewClient(&redis.Options{

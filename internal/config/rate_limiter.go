@@ -85,31 +85,3 @@ func LoadRateLimiterConfig() (RateLimiterConfig, error) {
 		BlockDuration: blockDuration,
 	}, nil
 }
-
-func (c RateLimiterConfig) Validate() error {
-	if c.KeyPrefix == "" {
-		return fmt.Errorf(
-			"rate limiter key prefix must not be empty",
-		)
-	}
-
-	if c.MaxAttempts <= 0 {
-		return fmt.Errorf(
-			"rate limiter max attempts must be greater than 0",
-		)
-	}
-
-	if c.Window <= 0 {
-		return fmt.Errorf(
-			"rate limiter window must be greater than 0",
-		)
-	}
-
-	if c.BlockDuration <= 0 {
-		return fmt.Errorf(
-			"rate limiter block duration must be greater than 0",
-		)
-	}
-
-	return nil
-}

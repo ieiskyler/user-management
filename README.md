@@ -124,14 +124,32 @@ Login failures are counted per account in a fixed window.
 - After the block expires, the account starts again with zero failures.
 - A successful login resets the account's failure counter.
 - Redis is required by the current implementation. Redis errors during the pre-login check fail closed with a `500` response.
+- Database failures return `500 FAILED_TO_LOGIN` and are not counted as failed login attempts.
 
 The counting window and block duration are independent timers. The counting window starts at the first failure and does not move after later failures. The block timer starts only when the maximum number of failures is reached.
+
+When an account is blocked, the response includes `Retry-After` in seconds:
+
+```http
+HTTP/1.1 429 Too Many Requests
+Retry-After: 287
+Content-Type: application/json
+```
+
+```json
+{
+  "status": 429,
+  "code": "TOO_MANY_REQUESTS",
+  "message": "too many login attempts"
+}
+```
 
 ## Prerequisites
 
 Before running the API, make sure you have:
 
 - Go 1.26 or later
+- Redis 7 or later running locally
 - PostgreSQL running locally
 - A PostgreSQL database named `user_management`
 

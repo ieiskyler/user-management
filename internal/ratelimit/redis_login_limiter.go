@@ -149,6 +149,22 @@ func NewRedisLoginLimiter(client *redis.Client, options Options) (*RedisLoginLim
 		return nil, errors.New("redis client must not be nil")
 	}
 
+	if options.KeyPrefix == "" {
+		return nil, errors.New("key prefix must not be empty")
+	}
+
+	if options.MaxAttempts <= 0 {
+		return nil, errors.New("max attempts must be greater than zero")
+	}
+
+	if options.Window <= 0 {
+		return nil, errors.New("window must be greater than zero")
+	}
+
+	if options.BlockDuration <= 0 {
+		return nil, errors.New("block duration must be greater than zero")
+	}
+
 	return &RedisLoginLimiter{
 		client:        client,
 		keyPrefix:     options.KeyPrefix,
@@ -174,8 +190,7 @@ func (l *RedisLoginLimiter) IsBlocked(ctx context.Context, account string) (bool
 	).Int64Slice()
 	if err != nil {
 		return false, 0, fmt.Errorf(
-			"check login rate limiter for %q: %w",
-			account,
+			"check login rate limiter: %w",
 			err,
 		)
 	}
@@ -207,8 +222,7 @@ func (l *RedisLoginLimiter) RecordFailure(ctx context.Context, account string) e
 
 	if err != nil {
 		return fmt.Errorf(
-			"record login failure for %q: %w",
-			account,
+			"record login failure: %w",
 			err,
 		)
 	}
@@ -222,8 +236,7 @@ func (l *RedisLoginLimiter) Reset(ctx context.Context, account string) error {
 		l.redisKey(account),
 	).Err(); err != nil {
 		return fmt.Errorf(
-			"reset login rate limit for %q: %w",
-			account,
+			"reset login rate limit: %w",
 			err,
 		)
 	}
