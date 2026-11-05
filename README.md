@@ -27,30 +27,41 @@ The API supports:
 user-management/
 ├── cmd/
 │   └── api/
-│       └── main.go
+│       ├── main.go
+│       └── main_test.go
+├── docs/
+│   └── UAT/
+│       └── UAT_Login_Rate_Limiter.xlsx
 ├── internal/
 │   ├── config/
-│   │   ├── auth_test.go
 │   │   ├── auth.go
-│   │   ├── database_pool_test.go
-│   │   ├── database_pool.go
+│   │   ├── auth_test.go
+│   │   ├── database.go
 │   │   ├── database_test.go
-│   │   └── database.go
+│   │   ├── database_pool.go
+│   │   ├── database_pool_test.go
+│   │   ├── rate_limiter.go
+│   │   └── rate_limiter_test.go
 │   ├── handler/
 │   │   ├── auth_handler.go
 │   │   ├── auth_handler_test.go
-│   │   ├── user_query_test.go
-│   │   ├── user_query.go
-│   │   ├── user_response.go
-│   │   ├── user_response_test.go
 │   │   ├── user_handler.go
-│   │   └── user_handler_test.go
+│   │   ├── user_handler_test.go
+│   │   ├── user_query.go
+│   │   ├── user_query_test.go
+│   │   ├── user_response.go
+│   │   └── user_response_test.go
 │   ├── middleware/
 │   │   ├── auth_middleware.go
-│   │   └── auth_middleware_test.go
+│   │   ├── auth_middleware_test.go
+│   │   ├── login_rate_limit.go
+│   │   └── login_rate_limit_test.go
 │   ├── models/
 │   │   ├── user.go
 │   │   └── user_test.go
+│   ├── ratelimit/
+│   │   ├── redis_login_limiter.go
+│   │   └── redis_login_limiter_test.go
 │   ├── repository/
 │   │   ├── user_repository.go
 │   │   └── user_repository_test.go
@@ -65,9 +76,27 @@ user-management/
 │       ├── auth_service_test.go
 │       ├── user_service.go
 │       └── user_service_test.go
+├── .env.example
+├── .gitignore
+├── Dockerfile
+├── docker-compose.yml
 ├── go.mod
+├── go.sum
 └── README.md
 ```
+
+The project uses a layered internal architecture:
+
+- `config` loads and validates environment-based application settings.
+- `handler` contains HTTP request parsing and response handling.
+- `middleware` contains request authentication and login rate-limit enforcement.
+- `models` defines database entities.
+- `ratelimit` contains the Redis-backed login limiter implementation.
+- `repository` contains database access.
+- `service` contains application and authentication business logic.
+- `server` wires routes and middleware.
+- `cmd/api` is the application entry point and composition root.
+- `docs/UAT` contains manual user-acceptance test evidence.
 
 ## Environment Configuration
 
