@@ -11,7 +11,12 @@ import (
 	"github.com/redis/go-redis/v9"
 )
 
+// isBlockedScript reports whether an account is currently blocked.
+// KEYS[1] = account key; ARGV[1] = counting window in milliseconds.
+// Returns {1, remainingMs} when blocked, otherwise {0, 0}.
+// It never records failures; it only reads state and removes expired entries.
 var isBlockedScript = redis.NewScript(`
+-- Get the current state of the account from Redis.
 local values = redis.call(
 	"HMGET",
 	KEYS[1],
@@ -19,18 +24,23 @@ local values = redis.call(
 	"blocked_until_ms"
 )
 
+-- if the account does not exist, it is not blocked.
 if values[1] == false then
 	return {0, 0}
 end
 
+-- convert the current time to milliseconds since epoch.
 local timeParts = redis.call("TIME")
 local nowMs = 
 	tonumber(timeParts[1]) * 1000 +
 	math.floor(tonumber(timeParts[2]) / 1000)
 
+
+-- parse the window start and blocked until times from Redis.
 local windowStartMs = tonumber(values[1]) or 0
 local blockedUntilMs = tonumber(values[2]) or 0
 
+-- still blocked if the current time is less than the blocked until time.
 if blockedUntilMs > 0 then
 	if nowMs < blockedUntilMs then
 		return {1, blockedUntilMs - nowMs}
@@ -40,6 +50,7 @@ if blockedUntilMs > 0 then
 	return {0, 0}
 end
 
+-- if the window has expired, delete the account state and return not blocked.
 if nowMs - windowStartMs >= tonumber(ARGV[1]) then
 	redis.call("DEL", KEYS[1])
 	return {0, 0}
@@ -48,7 +59,14 @@ end
 return {0, 0}
 `)
 
+// recordFailureScript counts one failed login atomically.
+// Redis hash fields: count, window_start_ms, blocked_until_ms.
+// KEYS[1] = account key; ARGV = window ms, max attempts, block ms.
+// Returns the new failure count, or 0 if the account is already blocked.
+// The window starts at the first failure and does not move; the block
+// starts at the failure that reaches max attempts.
 var recordFailureScript = redis.NewScript(`
+-- Get the current state of the account from Redis.
 local values = redis.call(
 	"HMGET",
 	KEYS[1],
@@ -57,23 +75,26 @@ local values = redis.call(
 	"blocked_until_ms"
 )
 
+-- convert the current time to milliseconds since epoch.
 local timeParts = redis.call("TIME")
 local nowMs =
 	tonumber(timeParts[1]) * 1000 +
 	math.floor(tonumber(timeParts[2]) / 1000)
 
+-- parse the current state from Redis.
 local count = tonumber(values[1]) or 0
 local windowStartMs = tonumber(values[2]) or 0
 local blockedUntilMs = tonumber(values[3]) or 0
-
 local windowMs = tonumber(ARGV[1])
 local maxAttempts = tonumber(ARGV[2])
 local blockDurationMs = tonumber(ARGV[3])
 
+-- if the account is currently blocked, return 0 to indicate no new failure was recorded.
 if blockedUntilMs > 0 and nowMs < blockedUntilMs then
 	return 0
 end
 
+-- if the window has expired, reset the count and window start time.
 if windowStartMs == 0 or nowMs - windowStartMs >= windowMs then
 	count = 1
 	windowStartMs = nowMs
@@ -105,8 +126,11 @@ if windowStartMs == 0 or nowMs - windowStartMs >= windowMs then
 	return count
 end
 
+-- if the account is not blocked and the window has not expired, increment the count.
 count = count + 1
 
+
+-- if the count reaches max attempts, set the blocked until time and expire the key.
 if count >= maxAttempts then
 	blockedUntilMs = nowMs + blockDurationMs
 
