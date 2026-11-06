@@ -1,15 +1,19 @@
 package main
 
 import (
+	"context"
 	"errors"
 	"net/http"
 	"net/http/httptest"
 	"testing"
+	"time"
+
 	"user-management/internal/handler"
 	"user-management/internal/models"
 	"user-management/internal/server"
 
 	"github.com/gin-gonic/gin"
+	"github.com/redis/go-redis/v9"
 	"github.com/stretchr/testify/assert"
 	"gorm.io/gorm"
 )
@@ -21,6 +25,29 @@ func (mockAuthService) Login(string, string) (string, error) { return "token", n
 
 type mockUserService struct{}
 
+type fakeLoginLimiter struct{}
+
+func (fakeLoginLimiter) IsBlocked(
+	context.Context,
+	string,
+) (bool, time.Duration, error) {
+	return false, 0, nil
+}
+
+func (fakeLoginLimiter) RecordFailure(
+	context.Context,
+	string,
+) error {
+	return nil
+}
+
+func (fakeLoginLimiter) Reset(
+	context.Context,
+	string,
+) error {
+	return nil
+}
+
 func (mockUserService) GetAllUsers(page, limit int) ([]models.User, int64, error) {
 	return []models.User{}, 0, nil
 }
@@ -29,6 +56,7 @@ func TestRouter(t *testing.T) {
 	router := server.NewRouter(
 		newAuthHandlerForTest(),
 		newUserHandlerForTest(),
+		fakeLoginLimiter{},
 	)
 
 	for _, route := range []struct {
@@ -47,6 +75,13 @@ func TestRouter(t *testing.T) {
 }
 
 func TestMain(t *testing.T) {
+	t.Chdir("../..")
+
+	t.Setenv("REDIS_HOST", "localhost")
+	t.Setenv("REDIS_PORT", "6379")
+	t.Setenv("REDIS_PASSWORD", "")
+	t.Setenv("REDIS_DATABASE", "0")
+
 	originalConnectDatabase := connectDatabase
 	originalRunServer := runServer
 	t.Cleanup(func() {
@@ -57,6 +92,11 @@ func TestMain(t *testing.T) {
 	connectDatabase = func() (*gorm.DB, error) {
 		return &gorm.DB{}, nil
 	}
+
+	connectRedis = func() (*redis.Client, error) {
+		return redis.NewClient(&redis.Options{}), nil
+	}
+
 	serverStarted := false
 	runServer = func(*gin.Engine) error {
 		serverStarted = true

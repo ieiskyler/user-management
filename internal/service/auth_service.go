@@ -3,6 +3,7 @@ package service
 import (
 	"errors"
 	"time"
+
 	"user-management/internal/config"
 	"user-management/internal/models"
 	"user-management/internal/repository"
@@ -48,7 +49,11 @@ func (s *authService) Register(user *models.User) error {
 func (s *authService) Login(username, password string) (string, error) {
 	user, err := s.repo.FindByUsername(username)
 	if err != nil {
-		return "", ErrInvalidCredentials
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return "", ErrInvalidCredentials
+		}
+
+		return "", err
 	}
 
 	err = bcrypt.CompareHashAndPassword([]byte(user.Password), []byte(password))

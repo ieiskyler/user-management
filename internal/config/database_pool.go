@@ -65,6 +65,20 @@ func parseIntEnvironment(name string, defaultValue int) (int, error) {
 	return parsedValue, nil
 }
 
+func parseNonNegativeIntEnvironment(name string, defaultValue int) (int, error) {
+	value := os.Getenv(name)
+	if value == "" {
+		return defaultValue, nil
+	}
+
+	parsedValue, err := strconv.Atoi(value)
+	if err != nil || parsedValue < 0 {
+		return 0, fmt.Errorf("%s must be zero or greater", name)
+	}
+
+	return parsedValue, nil
+}
+
 func parseDurationEnvironment(name string, defaultValue time.Duration) (time.Duration, error) {
 	value := os.Getenv(name)
 	if value == "" {
@@ -77,4 +91,13 @@ func parseDurationEnvironment(name string, defaultValue time.Duration) (time.Dur
 	}
 
 	return parsedValue, nil
+}
+
+func stringEnvironment(name, defaultValue string) string {
+	value := os.Getenv(name)
+	if value == "" {
+		return defaultValue
+	}
+
+	return value
 }

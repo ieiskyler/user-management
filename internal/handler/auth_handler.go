@@ -21,8 +21,12 @@ type AuthHandler struct {
 	authService service.AuthService
 }
 
-func NewAuthHandler(authService service.AuthService) *AuthHandler {
-	return &AuthHandler{authService: authService}
+func NewAuthHandler(
+	authService service.AuthService,
+) *AuthHandler {
+	return &AuthHandler{
+		authService: authService,
+	}
 }
 
 func (h *AuthHandler) Register(c *gin.Context) {
@@ -88,14 +92,24 @@ func (h *AuthHandler) Login(c *gin.Context) {
 		)
 		return
 	}
-
 	token, err := h.authService.Login(loginRequest.Username, loginRequest.Password)
+
 	if err != nil {
+		if errors.Is(err, service.ErrInvalidCredentials) {
+			response.Error(
+				c,
+				http.StatusUnauthorized,
+				response.CodeInvalidCredentials,
+				"invalid credentials",
+			)
+			return
+		}
+
 		response.Error(
 			c,
-			http.StatusUnauthorized,
-			response.CodeInvalidCredentials,
-			"invalid credentials",
+			http.StatusInternalServerError,
+			response.CodeFailedToLogin,
+			"failed to login",
 		)
 		return
 	}

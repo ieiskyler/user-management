@@ -6,7 +6,9 @@ import (
 	"net/http/httptest"
 	"strings"
 	"testing"
+
 	"user-management/internal/models"
+	"user-management/internal/service"
 
 	"github.com/gin-gonic/gin"
 	"github.com/stretchr/testify/assert"
@@ -87,6 +89,7 @@ func TestAuthHandlerRegister(t *testing.T) {
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
 			mockService := &mockAuthService{registerError: test.registerError}
+
 			handler := NewAuthHandler(mockService)
 			request := httptest.NewRequest(http.MethodPost, "/api/v1/register", strings.NewReader(test.body))
 			request.Header.Set("Content-Type", "application/json")
@@ -129,15 +132,23 @@ func TestAuthHandlerLogin(t *testing.T) {
 		{
 			name:           "authentication error",
 			body:           `{"username":"johndoe","password":"wrongpassword123"}`,
-			loginError:     errors.New("invalid credentials"),
+			loginError:     service.ErrInvalidCredentials,
 			expectedStatus: http.StatusUnauthorized,
 			expectedBody:   `"code":"INVALID_CREDENTIALS"`,
+		},
+		{
+			name:           "service error",
+			body:           `{"username":"johndoe","password":"password123"}`,
+			loginError:     errors.New("database unavailable"),
+			expectedStatus: http.StatusInternalServerError,
+			expectedBody:   `"code":"FAILED_TO_LOGIN"`,
 		},
 	}
 
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
 			mockService := &mockAuthService{loginToken: test.loginToken, loginError: test.loginError}
+
 			handler := NewAuthHandler(mockService)
 			request := httptest.NewRequest(http.MethodPost, "/api/v1/login", strings.NewReader(test.body))
 			request.Header.Set("Content-Type", "application/json")

@@ -13,6 +13,8 @@ const (
 	CodeUserAlreadyExists     = "USER_ALREADY_EXISTS"
 	CodeFailedToRegister      = "FAILED_TO_REGISTER"
 	CodeInvalidCredentials    = "INVALID_CREDENTIALS"
+	CodeTooManyRequests       = "TOO_MANY_REQUESTS"
+	CodeFailedToLogin         = "FAILED_TO_LOGIN"
 	CodeMissingAuthorization  = "MISSING_AUTHORIZATION"
 	CodeInvalidAuthorization  = "INVALID_AUTHORIZATION"
 	CodeInvalidToken          = "INVALID_TOKEN"
